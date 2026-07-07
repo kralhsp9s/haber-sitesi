@@ -12,7 +12,7 @@ app.get('/api/haberler', async (req, res) => {
     try {
         // 2. DEĞİŞİKLİK: Sahibinin örneğindeki gibi doğrudan haber() fonksiyonunu çalıştırıyoruz
         const haberListesi = await haber(); 
-        
+        console.log(haberListesi)
         // Başarılı olursa veriyi JSON olarak frontend'e gönder
         res.status(200).json(haberListesi);
     } catch (error) {
