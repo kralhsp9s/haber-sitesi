@@ -62,28 +62,38 @@
                 }
 
                 // Her bir haber için HTML kartı oluştur ve ekrana ekle
-                haberler.forEach(haber => {
-                    // Paketin döndürdüğü veri yapısına göre (title, description, url, image) buraları eşleştirin.
-                    const baslik = haber.title || haber.baslik || 'Başlık Bulunamadı';
-                    const aciklama = haber.description || haber.ozet || 'Açıklama mevcut değil.';
-                    const resim = haber.image || haber.resim || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'; // Varsayılan resim
-                    const link = haber.url || haber.link || '#';
+                // Her bir haber için HTML kartı oluştur ve ekrana ekle
+haberler.forEach(haber => {
+    const baslik = haber.title || haber.baslik || 'Başlık Bulunamadı';
+    const aciklama = haber.description || haber.ozet || 'Açıklama mevcut değil.';
+    const link = haber.url || haber.link || '#';
+    
+    // 1. Gelen ham resim verisini al (paket hangi ismi kullanıyorsa onu buraya eklediğinden emin ol, örn: haber.image)
+    const hamResim = haber.image || haber.resim || haber.gorsel || '';
+    
+    // 2. Varsayılan bir resim belirle
+    let sonResim = 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80';
+    
+    // 3. Eğer ham resim verisi varsa, virgülle böl ve ilkini al
+    if (hamResim) {
+        sonResim = hamResim.split(',')[0].trim();
+    }
 
-                    const kartHTML = `
-                        <article class="news-card bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col h-full">
-                            <img src="${resim}" alt="${baslik}" class="w-full h-48 object-cover">
-                            <div class="p-6 flex flex-col flex-grow">
-                                <h3 class="text-xl font-bold text-gray-900 mb-2 line-clamp-2">${baslik}</h3>
-                                <p class="text-gray-600 text-sm mb-4 line-clamp-3 flex-grow">${aciklama}</p>
-                                <a href="${link}" target="_blank" class="inline-flex items-center text-blue-600 font-semibold text-sm hover:text-blue-800 transition-colors mt-auto">
-                                    Haberi Oku 
-                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-                                </a>
-                            </div>
-                        </article>
-                    `;
-                    haberlerAlani.insertAdjacentHTML('beforeend', kartHTML);
-                });
+    const kartHTML = `
+        <article class="news-card bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col h-full">
+            <img src="${sonResim}" alt="${baslik}" class="w-full h-48 object-cover">
+            <div class="p-6 flex flex-col flex-grow">
+                <h3 class="text-xl font-bold text-gray-900 mb-2 line-clamp-2">${baslik}</h3>
+                <p class="text-gray-600 text-sm mb-4 line-clamp-3 flex-grow">${aciklama}</p>
+                <a href="${link}" target="_blank" class="inline-flex items-center text-blue-600 font-semibold text-sm hover:text-blue-800 transition-colors mt-auto">
+                    Haberi Oku 
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </a>
+            </div>
+        </article>
+    `;
+    haberlerAlani.insertAdjacentHTML('beforeend', kartHTML);
+});
 
             } catch (error) {
                 console.error('Haberler alınamadı:', error);
