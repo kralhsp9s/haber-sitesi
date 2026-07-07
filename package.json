@@ -1,0 +1,21 @@
+{
+  "name": "modern-haber-sitesi",
+  "version": "1.0.0",
+  "description": "Node.js ve Tailwind CSS kullanılarak hazırlanmış modern haber sitesi projesi.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "haberler",
+    "nodejs",
+    "express",
+    "tailwind"
+  ],
+  "author": "Senin Adın",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "haberler": "^1.0.0"
+  }
+}
