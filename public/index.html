@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Haberler | Gündem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Kartların üzerine gelince hafifçe yukarı kalkma efekti */
+        .news-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .news-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-black text-blue-600 tracking-tight">Haber Merkezi</h1>
+            <nav class="hidden md:flex space-x-6 text-sm font-medium text-gray-500">
+                <a href="#" class="hover:text-blue-600 transition-colors">Son Dakika</a>
+                <a href="#" class="hover:text-blue-600 transition-colors">Ekonomi</a>
+                <a href="#" class="hover:text-blue-600 transition-colors">Spor</a>
+                <a href="#" class="hover:text-blue-600 transition-colors">Teknoloji</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        <div class="flex justify-between items-center mb-8">
+            <h2 class="text-3xl font-bold text-gray-900">Öne Çıkan Haberler</h2>
+            <span class="text-sm text-gray-500 bg-gray-200 px-3 py-1 rounded-full">Canlı Akış</span>
+        </div>
+
+        <div id="haberler-alani" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div id="loading" class="col-span-full flex justify-center py-10">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-900 text-white text-center py-6 mt-auto">
+        <p class="text-sm text-gray-400">&copy; 2026 Haber Merkezi. Tüm hakları saklıdır.</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const haberlerAlani = document.getElementById('haberler-alani');
+            const loading = document.getElementById('loading');
+
+            try {
+                // Backend'imizden haber verilerini çekiyoruz
+                const response = await fetch('/api/haberler');
+                const haberler = await response.json();
+
+                // Yükleniyor ikonunu kaldır
+                loading.remove();
+
+                // Eğer gelen veri boşsa kullanıcıyı bilgilendir
+                if (!haberler || haberler.length === 0) {
+                    haberlerAlani.innerHTML = '<p class="col-span-full text-center text-gray-500">Şu anda gösterilecek haber bulunmuyor.</p>';
+                    return;
+                }
+
+                // Her bir haber için HTML kartı oluştur ve ekrana ekle
+                haberler.forEach(haber => {
+                    // Paketin döndürdüğü veri yapısına göre (title, description, url, image) buraları eşleştirin.
+                    const baslik = haber.title || haber.baslik || 'Başlık Bulunamadı';
+                    const aciklama = haber.description || haber.ozet || 'Açıklama mevcut değil.';
+                    const resim = haber.image || haber.resim || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'; // Varsayılan resim
+                    const link = haber.url || haber.link || '#';
+
+                    const kartHTML = `
+                        <article class="news-card bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col h-full">
+                            <img src="${resim}" alt="${baslik}" class="w-full h-48 object-cover">
+                            <div class="p-6 flex flex-col flex-grow">
+                                <h3 class="text-xl font-bold text-gray-900 mb-2 line-clamp-2">${baslik}</h3>
+                                <p class="text-gray-600 text-sm mb-4 line-clamp-3 flex-grow">${aciklama}</p>
+                                <a href="${link}" target="_blank" class="inline-flex items-center text-blue-600 font-semibold text-sm hover:text-blue-800 transition-colors mt-auto">
+                                    Haberi Oku 
+                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                                </a>
+                            </div>
+                        </article>
+                    `;
+                    haberlerAlani.insertAdjacentHTML('beforeend', kartHTML);
+                });
+
+            } catch (error) {
+                console.error('Haberler alınamadı:', error);
+                loading.innerHTML = '<p class="text-red-500 font-semibold">Haberler yüklenirken bir sorun oluştu. Lütfen daha sonra tekrar deneyin.</p>';
+            }
+        });
+    </script>
+</body>
+</html>
