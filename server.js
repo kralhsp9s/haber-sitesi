@@ -84,38 +84,81 @@ async function sendPushNotification(title, body, url = '/') {
 }
 
 // LOGIN
+// LOGIN
 app.post('/api/login', async (req, res) => {
   try {
     const username = String(req.body?.username || '').trim();
     const password = String(req.body?.password || '');
-    const db = readDB();
 
     if (!username || !password) {
-      return res.status(400).json({ success: false, message: 'Kullanıcı adı ve şifre zorunludur.' });
+      return res.status(400).json({
+        success: false,
+        message: 'Kullanıcı adı ve şifre zorunludur.'
+      });
     }
 
-    const validUser = username === String(db.settings.adminUser || '');
-    const validPassword = validUser && await bcrypt.compare(password, String(db.settings.adminPassHash || ''));
+    const db = readDB();
 
-    if (!validPassword) {
-      return res.status(401).json({ success: false, message: 'Kullanıcı adı veya şifre hatalı!' });
+    const adminUser = String(
+      process.env.ADMIN_USER || db.settings.adminUser || 'admin'
+    ).trim();
+
+    const adminPassword = String(
+      process.env.ADMIN_PASSWORD || ''
+    );
+
+    let validPassword = false;
+
+    // .env'de ADMIN_PASSWORD varsa onu kullan
+    if (adminPassword) {
+      validPassword = password === adminPassword;
+    } else {
+      // .env yoksa database'deki bcrypt hash'i kullan
+      const storedHash = String(db.settings.adminPassHash || '');
+
+      if (storedHash) {
+        validPassword = await bcrypt.compare(password, storedHash);
+      }
+    }
+
+    if (username !== adminUser || !validPassword) {
+      console.log(`[LOGIN] Başarısız giriş: ${username}`);
+
+      return res.status(401).json({
+        success: false,
+        message: 'Kullanıcı adı veya şifre hatalı!'
+      });
     }
 
     req.session.authenticated = true;
     req.session.user = username;
-    return res.json({ success: true, message: 'Giriş başarılı.' });
+
+    req.session.save(err => {
+      if (err) {
+        console.error('Session save error:', err);
+
+        return res.status(500).json({
+          success: false,
+          message: 'Oturum oluşturulamadı.'
+        });
+      }
+
+      console.log(`[LOGIN] Başarılı giriş: ${username}`);
+
+      return res.json({
+        success: true,
+        message: 'Giriş başarılı.'
+      });
+    });
+
   } catch (error) {
     console.error('Login error:', error);
-    return res.status(500).json({ success: false, message: 'Giriş sırasında sunucu hatası oluştu.' });
+
+    return res.status(500).json({
+      success: false,
+      message: 'Giriş sırasında sunucu hatası oluştu.'
+    });
   }
-});
-
-app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => res.json({ success: true }));
-});
-
-app.get('/api/auth-check', (req, res) => {
-  res.json({ authenticated: !!req.session?.authenticated });
 });
 
 // SETTINGS
