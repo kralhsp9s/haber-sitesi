@@ -51,30 +51,111 @@ async function safeJson(res) {
 
 async function handleLogin(e) {
   e.preventDefault();
-  const btn = e.submitter || document.querySelector('#login-form button[type="submit"]');
-  const old = btn.innerHTML;
-  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Giriş yapılıyor...';
+
+  const form = e.currentTarget;
+  const btn =
+    e.submitter ||
+    form.querySelector('button[type="submit"]');
+
+  const usernameInput = document.getElementById('username');
+  const passwordInput = document.getElementById('password');
+
+  if (!usernameInput || !passwordInput) {
+    alert('Login alanları bulunamadı.');
+    return;
+  }
+
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value;
+
+  if (!username || !password) {
+    alert('Kullanıcı adı ve şifreyi girin.');
+    return;
+  }
+
+  const oldText = btn ? btn.innerHTML : '';
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin"></i> Giriş yapılıyor...';
+  }
+
   try {
     const res = await fetch('/api/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'same-origin',
       body: JSON.stringify({
-        username: document.getElementById('username').value.trim(),
-        password: document.getElementById('password').value
+        username,
+        password
       })
     });
-    const data = await safeJson(res);
-    if (!res.ok || !data.success) throw new Error(data.message || data.error || 'Giriş başarısız.');
-    await checkAuth();
-  } catch (err) { alert(err.message); }
-  finally { btn.disabled = false; btn.innerHTML = old; }
-}
 
+    const data = await safeJson(res);
+
+    if (!res.ok || !data.success) {
+      throw new Error(
+        data.message ||
+        data.error ||
+        'Kullanıcı adı veya şifre hatalı.'
+      );
+    }
+
+    await checkAuth();
+
+  } catch (err) {
+    console.error('Login error:', err);
+    alert(err.message || 'Giriş yapılamadı.');
+
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  }
+}
 async function checkAuth() {
-  const res = await fetch('/api/auth-check');
-  const data = await safeJson(res);
-  document.getElementById('login-screen').classList.toggle('hidden', !!data.authenticated);
-  document.getElementById('app-dashboard').classList.toggle('hidden', !data.authenticated);
-  if (data.authenticated) { await loadDashboardData(); updateNotificationButton(); }
+  try {
+    const res = await fetch('/api/auth-check', {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+
+    const data = await safeJson(res);
+
+    const loginScreen = document.getElementById('login-screen');
+    const dashboard = document.getElementById('app-dashboard');
+
+    if (!loginScreen || !dashboard) {
+      console.error('Login veya dashboard elementi bulunamadı.');
+      return;
+    }
+
+    const authenticated = data.authenticated === true;
+
+    loginScreen.classList.toggle('hidden', authenticated);
+    dashboard.classList.toggle('hidden', !authenticated);
+
+    if (authenticated) {
+      await loadDashboardData();
+      await updateNotificationButton();
+    }
+
+  } catch (error) {
+    console.error('Auth check error:', error);
+
+    document
+      .getElementById('login-screen')
+      ?.classList.remove('hidden');
+
+    document
+      .getElementById('app-dashboard')
+      ?.classList.add('hidden');
+  }
 }
 
 async function logout() { await fetch('/api/logout', { method: 'POST' }); await checkAuth(); }
