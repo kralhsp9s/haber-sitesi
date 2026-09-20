@@ -130,7 +130,8 @@ app.get('/api/logs', authGuard, (req, res) => {
   res.json(db.logs);
 });
 
-                async function fetchInstagramDataForProfile(profile) {
+// ---------------- INSTAGRAM DATA SCRAPER ----------------
+async function fetchInstagramDataForProfile(profile) {
   const db = readDB();
   const apiKey = db.settings.apiKey;
   const apiHost = db.settings.apiHost;
@@ -141,7 +142,7 @@ app.get('/api/logs', authGuard, (req, res) => {
     const options = {
       method: 'GET',
       url: `https://${apiHost}/user_tagged`,
-      params: { user_id: profile.userId, count: 50 }, // Geçmişi daha derin taramak için count artırıldı
+      params: { user_id: profile.userId, count: 50 },
       headers: {
         'x-rapidapi-key': apiKey,
         'x-rapidapi-host': apiHost,
@@ -155,7 +156,6 @@ app.get('/api/logs', authGuard, (req, res) => {
     if (apiData && (apiData.items || apiData.data)) {
       const items = apiData.items || apiData.data || [];
       
-      // Profili veritabanında ilk kez mi tarıyoruz kontrolü
       const isFirstSync = !db.media.some(m => m.profileId === profile.id);
 
       items.forEach(item => {
@@ -169,7 +169,7 @@ app.get('/api/logs', authGuard, (req, res) => {
         const existingMedia = db.media.find(m => m.id === mediaId);
 
         if (!existingMedia) {
-          db.media.push({ // unshift yerine push kullanarak geçmişi eskiye doğru dizeriz
+          db.media.push({
             id: mediaId,
             profileId: profile.id,
             profileUsername: profile.username,
@@ -181,7 +181,6 @@ app.get('/api/logs', authGuard, (req, res) => {
             timestamp: new Date().toLocaleString('tr-TR')
           });
 
-          // Sadece ilk senkronizasyon DEĞİLSE ve profil sessizde değilse bildirim at
           if (!isFirstSync && !profile.muted) {
             db.logs.unshift({
               id: Date.now().toString() + Math.random(),
@@ -192,7 +191,6 @@ app.get('/api/logs', authGuard, (req, res) => {
             });
           }
         } else {
-          // Beğeni/Yorum Güncelleme Mantığı (Aynı kalıyor)
           if (currentLikes > existingMedia.likes) {
             existingMedia.likes = currentLikes;
           }
@@ -203,13 +201,13 @@ app.get('/api/logs', authGuard, (req, res) => {
       });
       
       if (isFirstSync) {
-         db.logs.unshift({
-            id: Date.now().toString(),
-            timestamp: new Date().toLocaleString('tr-TR'),
-            type: 'SYSTEM',
-            message: `@${profile.username} için geçmiş arşiv başarıyla çekildi. (${items.length} içerik)`,
-            profileUsername: profile.username
-         });
+        db.logs.unshift({
+          id: Date.now().toString(),
+          timestamp: new Date().toLocaleString('tr-TR'),
+          type: 'SYSTEM',
+          message: `@${profile.username} için geçmiş arşiv başarıyla çekildi. (${items.length} içerik)`,
+          profileUsername: profile.username
+        });
       }
 
       writeDB(db);
@@ -217,7 +215,7 @@ app.get('/api/logs', authGuard, (req, res) => {
   } catch (error) {
     console.error(`[API ERROR] @${profile.username}:`, error.message);
   }
-
+} // <-- EKSİK OLAN PARANTEZ BURAYA EKLENDİ
 
 // MANÜEL TETİKLEME / CRON ORTAK METODU
 async function runDailyScraperQueue() {
@@ -240,7 +238,6 @@ app.post('/api/sync-now', authGuard, async (req, res) => {
 });
 
 // CRON ZAMANLAYICI: Her 3 saatte bir çalışır (Günde tam 8 İstek)
-// 00:00, 03:00, 06:00, 09:00, 12:00, 15:00, 18:00, 21:00
 cron.schedule('0 */3 * * *', () => {
   console.log('[CRON OTO] 3 Saatlik periyot tetiklendi.');
   runDailyScraperQueue();
