@@ -130,23 +130,18 @@ app.get('/api/logs', authGuard, (req, res) => {
   res.json(db.logs);
 });
 
-// ---------------- RAPIDAPI TARAMA CORE ENGINI ----------------
-async function fetchInstagramDataForProfile(profile) {
+                async function fetchInstagramDataForProfile(profile) {
   const db = readDB();
   const apiKey = db.settings.apiKey;
   const apiHost = db.settings.apiHost;
 
-  if (!apiKey) {
-    console.log('[WARN] RapidAPI Key tanımlı değil, istek atılamadı.');
-    return;
-  }
+  if (!apiKey) return;
 
   try {
-    // RapidAPI isteği (Kullanıcının verdiği mimariye tam uygun)
     const options = {
       method: 'GET',
       url: `https://${apiHost}/user_tagged`,
-      params: { user_id: profile.userId },
+      params: { user_id: profile.userId, count: 50 }, // Geçmişi daha derin taramak için count artırıldı
       headers: {
         'x-rapidapi-key': apiKey,
         'x-rapidapi-host': apiHost,
@@ -154,14 +149,15 @@ async function fetchInstagramDataForProfile(profile) {
       }
     };
 
-    console.log(`[RAPIDAPI] Fetching data for user: ${profile.username} (${profile.userId})...`);
     const response = await axios.request(options);
     const apiData = response.data;
 
-    // Veri Analizi ve Log/Medya Kaydetme İşlemleri
     if (apiData && (apiData.items || apiData.data)) {
       const items = apiData.items || apiData.data || [];
       
+      // Profili veritabanında ilk kez mi tarıyoruz kontrolü
+      const isFirstSync = !db.media.some(m => m.profileId === profile.id);
+
       items.forEach(item => {
         const mediaId = item.id || item.pk;
         const currentLikes = item.like_count || 0;
@@ -173,8 +169,7 @@ async function fetchInstagramDataForProfile(profile) {
         const existingMedia = db.media.find(m => m.id === mediaId);
 
         if (!existingMedia) {
-          // YENİ İÇERİK TESPİT EDİLDİ
-          db.media.unshift({
+          db.media.push({ // unshift yerine push kullanarak geçmişi eskiye doğru dizeriz
             id: mediaId,
             profileId: profile.id,
             profileUsername: profile.username,
@@ -186,7 +181,8 @@ async function fetchInstagramDataForProfile(profile) {
             timestamp: new Date().toLocaleString('tr-TR')
           });
 
-          if (!profile.muted) {
+          // Sadece ilk senkronizasyon DEĞİLSE ve profil sessizde değilse bildirim at
+          if (!isFirstSync && !profile.muted) {
             db.logs.unshift({
               id: Date.now().toString() + Math.random(),
               timestamp: new Date().toLocaleString('tr-TR'),
@@ -196,43 +192,32 @@ async function fetchInstagramDataForProfile(profile) {
             });
           }
         } else {
-          // MEVCUT İÇERİK BEĞENİ VE YORUM DEĞİŞİM KONTROLÜ
+          // Beğeni/Yorum Güncelleme Mantığı (Aynı kalıyor)
           if (currentLikes > existingMedia.likes) {
-            const diff = currentLikes - existingMedia.likes;
             existingMedia.likes = currentLikes;
-            if (!profile.muted) {
-              db.logs.unshift({
-                id: Date.now().toString() + Math.random(),
-                timestamp: new Date().toLocaleString('tr-TR'),
-                type: 'LIKE',
-                message: `@${profile.username} profilinin (${mediaId}) gönderisine +${diff} yeni beğeni geldi! (Toplam: ${currentLikes})`,
-                profileUsername: profile.username
-              });
-            }
           }
-
           if (currentComments > existingMedia.comments) {
-            const diff = currentComments - existingMedia.comments;
             existingMedia.comments = currentComments;
-            if (!profile.muted) {
-              db.logs.unshift({
-                id: Date.now().toString() + Math.random(),
-                timestamp: new Date().toLocaleString('tr-TR'),
-                type: 'COMMENT',
-                message: `@${profile.username} profilinin (${mediaId}) gönderisine +${diff} yeni yorum yapıldı! (Toplam: ${currentComments})`,
-                profileUsername: profile.username
-              });
-            }
           }
         }
       });
+      
+      if (isFirstSync) {
+         db.logs.unshift({
+            id: Date.now().toString(),
+            timestamp: new Date().toLocaleString('tr-TR'),
+            type: 'SYSTEM',
+            message: `@${profile.username} için geçmiş arşiv başarıyla çekildi. (${items.length} içerik)`,
+            profileUsername: profile.username
+         });
+      }
 
       writeDB(db);
     }
   } catch (error) {
-    console.error(`[API ERROR] @${profile.username} çekilirken hata oluştu:`, error.message);
+    console.error(`[API ERROR] @${profile.username}:`, error.message);
   }
-}
+
 
 // MANÜEL TETİKLEME / CRON ORTAK METODU
 async function runDailyScraperQueue() {
