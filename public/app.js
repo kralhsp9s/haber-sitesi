@@ -138,15 +138,74 @@ async function toggleMute(profileId) {
   loadProfiles();
 }
 
+// --- YENİ INSTAGRAM SEKME VE MEDYA YÖNETİMİ ---
+let currentTab = 'post';
+let globalMediaList = [];
+
 async function loadMedia() {
   const res = await fetch('/api/media');
-  const mediaList = await res.json();
-  const container = document.getElementById('media-grid');
+  globalMediaList = await res.json();
+  renderMedia(currentTab);
+}
 
-  if (mediaList.length === 0) {
-    container.innerHTML = `<div class="col-span-2 text-center text-slate-500 py-8">Henüz kaydedilmiş medya bulunmuyor.</div>`;
+// HTML'den çağrılabilmesi için global window nesnesine ekliyoruz
+window.switchTab = function(tabName) {
+  currentTab = tabName;
+  
+  // Sekme renk ve çizgi animasyonları
+  ['post', 'reel', 'story'].forEach(t => {
+    const btn = document.getElementById(`tab-${t}`);
+    if(t === tabName) {
+      btn.classList.add('text-rose-400', 'border-rose-500');
+      btn.classList.remove('text-slate-500', 'border-transparent', 'hover:text-slate-300');
+    } else {
+      btn.classList.remove('text-rose-400', 'border-rose-500');
+      btn.classList.add('text-slate-500', 'border-transparent', 'hover:text-slate-300');
+    }
+  });
+
+  renderMedia(currentTab);
+}
+
+function renderMedia(type) {
+  const container = document.getElementById('media-grid');
+  // Sadece seçili sekmeye ait içerikleri filtrele
+  const filteredMedia = globalMediaList.filter(m => m.type === type);
+
+  if (filteredMedia.length === 0) {
+    container.innerHTML = `<div class="col-span-full text-center text-slate-500 py-16">Bu kategoride henüz arşivlenmiş içerik yok.</div>`;
     return;
   }
+
+  // Instagram profilindeki kare (aspect-square) görünümlü render
+  container.innerHTML = filteredMedia.map(m => `
+    <div class="group relative bg-slate-900 aspect-square overflow-hidden rounded-md border border-slate-700 cursor-pointer">
+      
+      <!-- Arka Plan Medyası -->
+      ${m.url ? `<img src="${m.url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" loading="lazy" alt="Media">` : `<div class="w-full h-full flex items-center justify-center text-xs text-slate-600">Önizleme Yok</div>`}
+      
+      <!-- Video / Reel İkonu Belirteci -->
+      ${m.type === 'reel' ? `<div class="absolute top-2 right-2 text-white drop-shadow-md"><i class="fa-solid fa-play"></i></div>` : ''}
+      
+      <!-- Hover Durumunda Çıkan Bilgi Katmanı (Overlay) -->
+      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-center items-center text-white p-2 text-center">
+        <div class="flex gap-4 font-bold text-sm mb-3">
+          <span title="Beğeni"><i class="fa-solid fa-heart"></i> ${m.likes}</span>
+          <span title="Yorum"><i class="fa-solid fa-comment"></i> ${m.comments}</span>
+        </div>
+        <p class="text-[10px] line-clamp-3 mb-3 text-slate-200">${m.caption}</p>
+        
+        <div class="flex gap-2">
+          <span class="bg-rose-600 px-2 py-1 rounded text-[10px] font-mono">@${m.profileUsername}</span>
+          <a href="${m.url}" target="_blank" download class="bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-[10px] flex items-center gap-1 transition">
+            <i class="fa-solid fa-download"></i> İndir
+          </a>
+        </div>
+      </div>
+
+    </div>
+  `).join('');
+    
 
   container.innerHTML = mediaList.map(m => `
     <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden flex flex-col shadow-md">
