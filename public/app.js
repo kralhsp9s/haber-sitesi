@@ -169,13 +169,43 @@ window.switchTab = function(tabName) {
 
 function renderMedia(type) {
   const container = document.getElementById('media-grid');
-  // Sadece seçili sekmeye ait içerikleri filtrele
-  const filteredMedia = globalMediaList.filter(m => m.type === type);
+  // Yeni eklenen geçmiş paylaşımların sıralamasını tersine çevirerek (en yeni en üstte) göster
+  const filteredMedia = globalMediaList.filter(m => m.type === type).sort((a, b) => b.id - a.id);
 
   if (filteredMedia.length === 0) {
-    container.innerHTML = `<div class="col-span-full text-center text-slate-500 py-16">Bu kategoride henüz arşivlenmiş içerik yok.</div>`;
+    container.innerHTML = `<div class="col-span-3 text-center text-slate-500 py-16 text-sm">Bu kategoride henüz arşivlenmiş içerik yok.</div>`;
     return;
   }
+
+  container.innerHTML = filteredMedia.map(m => `
+    <div onclick="const o = this.querySelector('.info-overlay'); o.classList.toggle('opacity-0'); o.classList.toggle('opacity-100');" 
+         class="group relative bg-slate-900 aspect-square overflow-hidden cursor-pointer border border-slate-800">
+      
+      ${m.url ? `<img src="${m.url}" class="w-full h-full object-cover sm:group-hover:scale-110 transition-transform duration-500" loading="lazy" alt="Media">` : `<div class="w-full h-full flex items-center justify-center text-[10px] text-slate-600">Önizleme Yok</div>`}
+      
+      ${m.type === 'reel' ? `<div class="absolute top-1 right-1 sm:top-2 sm:right-2 text-white drop-shadow-md text-xs sm:text-base"><i class="fa-solid fa-play"></i></div>` : ''}
+      
+      <!-- Mobilde Tıklama ile, Masaüstünde Hover ile açılan Bilgi Katmanı -->
+      <div class="info-overlay absolute inset-0 bg-black/75 opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-center items-center text-white p-1 sm:p-2 text-center">
+        
+        <div class="flex gap-2 sm:gap-4 font-bold text-[10px] sm:text-sm mb-1 sm:mb-3">
+          <span><i class="fa-solid fa-heart"></i> ${m.likes}</span>
+          <span><i class="fa-solid fa-comment"></i> ${m.comments}</span>
+        </div>
+        
+        <p class="text-[8px] sm:text-[10px] line-clamp-2 sm:line-clamp-3 mb-1 sm:mb-3 text-slate-200 hidden sm:block">${m.caption}</p>
+        
+        <div class="flex gap-1 sm:gap-2 flex-col sm:flex-row w-full px-2 items-center justify-center">
+          <span class="bg-rose-600/80 px-1 sm:px-2 py-0.5 sm:py-1 rounded text-[8px] sm:text-[10px] font-mono truncate max-w-[80%]">@${m.profileUsername}</span>
+          <a href="${m.url}" target="_blank" download class="bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-[10px] flex items-center gap-1 transition">
+            <i class="fa-solid fa-download text-[8px] sm:text-xs"></i> <span class="hidden sm:inline">İndir</span>
+          </a>
+        </div>
+        
+      </div>
+    </div>
+  `).join('');
+
 
   // Instagram profilindeki kare (aspect-square) görünümlü render
   container.innerHTML = filteredMedia.map(m => `
