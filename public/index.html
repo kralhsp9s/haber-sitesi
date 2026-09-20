@@ -60,6 +60,12 @@
         <button id="btn-sync" title="Günde 8 Limitli Taramayı Şimdi Çalıştır" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2">
           <i class="fa-solid fa-rotate"></i> <span>Şimdi Senkronize Et</span>
         </button>
+        <button id="btn-notifications" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg text-xs" title="Tarayıcı bildirimleri">
+          <i class="fa-regular fa-bell"></i> Bildirimleri Aç
+        </button>
+        <button id="btn-install" class="hidden bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-lg text-xs" title="Ana ekrana ekle">
+          <i class="fa-solid fa-mobile-screen-button"></i> Ana Ekrana Ekle
+        </button>
         <button id="btn-api-key" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-2.5 rounded-lg text-sm" title="API Key Ayarları">
           <i class="fa-solid fa-key"></i>
         </button>
@@ -145,6 +151,15 @@
       <div>
         <label class="block text-xs text-slate-400 mb-1">x-rapidapi-key</label>
         <input type="text" id="modal-api-key" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">RapidAPI Host</label>
+        <input type="text" id="modal-api-host" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Media API Path</label>
+        <input type="text" id="modal-api-path" placeholder="/user_medias" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+        <p class="text-[10px] text-slate-500 mt-1">Profilin kendi gönderilerini döndüren endpoint'i yazın.</p>
       </div>
       <div class="flex justify-end gap-2">
         <button id="close-modal" class="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-xs">İptal</button>
