@@ -69,9 +69,14 @@
         <button id="btn-api-key" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-2.5 rounded-lg text-sm" title="API Key Ayarları">
           <i class="fa-solid fa-key"></i>
         </button>
-        <button id="btn-theme" class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-2.5 rounded-lg text-sm">
-          <i class="fa-solid fa-moon"></i>
-        </button>
+        <div class="relative">
+          <button id="btn-theme" class="glass-btn" title="Tema"><i class="fa-solid fa-circle-half-stroke"></i> <span id="theme-label">Otomatik</span></button>
+          <div id="theme-menu" class="theme-menu hidden">
+            <button data-theme="auto"><i class="fa-solid fa-circle-half-stroke"></i> Otomatik</button>
+            <button data-theme="light"><i class="fa-solid fa-sun"></i> Aydınlık</button>
+            <button data-theme="dark"><i class="fa-solid fa-moon"></i> Karanlık</button>
+          </div>
+        </div>
         <button id="btn-logout" class="bg-rose-600 hover:bg-rose-500 text-white p-2.5 rounded-lg text-sm" title="Çıkış Yap">
           <i class="fa-solid fa-right-from-bracket"></i>
         </button>
@@ -90,8 +95,13 @@
           </h2>
           <form id="add-profile-form" class="space-y-3">
             <input type="text" id="target-username" placeholder="Instagram Kullanıcı Adı (ör: instagram)" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500">
-            <input type="text" id="target-userid" placeholder="Instagram Numeric User ID (ör: 25025320)" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500">
-            <button type="submit" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-medium py-2 rounded-lg text-sm transition">Profi̇li̇ Takibe Al</button>
+            <input type="text" id="target-userid" placeholder="ID otomatik bulunacak" readonly required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500">
+            
+          <div class="flex gap-2">
+              <button type="button" id="btn-resolve-user" class="secondary-btn flex-1"><i class="fa-solid fa-magnifying-glass"></i> ID Bul</button>
+              <button type="submit" class="primary-btn flex-1"><i class="fa-solid fa-user-plus"></i> Takibe Al</button>
+            </div>
+            <div id="resolve-status" class="text-xs muted min-h-4"></div>
           </form>
         </div>
 
@@ -160,6 +170,14 @@
         <label class="block text-xs text-slate-400 mb-1">Media API Path</label>
         <input type="text" id="modal-api-path" placeholder="/user_medias" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
         <p class="text-[10px] text-slate-500 mt-1">Profilin kendi gönderilerini döndüren endpoint'i yazın.</p>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">User ID Bulma API Path</label>
+        <input type="text" id="modal-user-path" placeholder="/search_user" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Hikâye API Path (opsiyonel)</label>
+        <input type="text" id="modal-story-path" placeholder="/user_stories" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white">
       </div>
       <div class="flex justify-end gap-2">
         <button id="close-modal" class="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-xs">İptal</button>
