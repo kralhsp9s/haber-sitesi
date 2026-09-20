@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const cron = require('node-cron');
 const axios = require('axios');
 const path = require('path');
+const { Readable } = require('stream');
 const webpush = require('web-push');
 const { readDB, writeDB } = require('./database');
 
@@ -76,17 +77,30 @@ async function sendPushNotification(title, body, url = '/') {
 }
 
 // LOGIN
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  const db = readDB();
+app.post('/api/login', async (req, res) => {
+  try {
+    const username = String(req.body?.username || '').trim();
+    const password = String(req.body?.password || '');
+    const db = readDB();
 
-  if (username === db.settings.adminUser && bcrypt.compareSync(password, db.settings.adminPassHash)) {
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Kullanıcı adı ve şifre zorunludur.' });
+    }
+
+    const validUser = username === String(db.settings.adminUser || '');
+    const validPassword = validUser && await bcrypt.compare(password, String(db.settings.adminPassHash || ''));
+
+    if (!validPassword) {
+      return res.status(401).json({ success: false, message: 'Kullanıcı adı veya şifre hatalı!' });
+    }
+
     req.session.authenticated = true;
     req.session.user = username;
     return res.json({ success: true, message: 'Giriş başarılı.' });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ success: false, message: 'Giriş sırasında sunucu hatası oluştu.' });
   }
-
-  return res.status(400).json({ success: false, message: 'Kullanıcı adı veya şifre hatalı!' });
 });
 
 app.post('/api/logout', (req, res) => {
@@ -99,12 +113,14 @@ app.get('/api/auth-check', (req, res) => {
 
 // SETTINGS
 app.post('/api/settings', authGuard, (req, res) => {
-  const { apiKey, apiHost, apiPath } = req.body;
+  const { apiKey, apiHost, apiPath, userLookupPath, storyPath } = req.body;
   const db = readDB();
 
   if (typeof apiKey === 'string') db.settings.apiKey = apiKey.trim();
   if (typeof apiHost === 'string' && apiHost.trim()) db.settings.apiHost = apiHost.trim();
   if (typeof apiPath === 'string' && apiPath.trim()) db.settings.apiPath = apiPath.trim();
+  if (typeof userLookupPath === 'string') db.settings.userLookupPath = userLookupPath.trim();
+  if (typeof storyPath === 'string') db.settings.storyPath = storyPath.trim();
 
   writeDB(db);
   res.json({ success: true, message: 'Ayarlar kaydedildi.' });
@@ -116,6 +132,8 @@ app.get('/api/settings', authGuard, (req, res) => {
     apiKey: db.settings.apiKey,
     apiHost: db.settings.apiHost,
     apiPath: db.settings.apiPath,
+    userLookupPath: db.settings.userLookupPath,
+    storyPath: db.settings.storyPath,
     vapidConfigured: Boolean(vapidPublicKey && vapidPrivateKey)
   });
 });
@@ -160,25 +178,62 @@ app.post('/api/push/test', authGuard, async (req, res) => {
   res.json({ success: true });
 });
 
+// INSTAGRAM USER RESOLVER
+function extractUserId(body) {
+  const candidates = [
+    body?.id, body?.user_id, body?.pk,
+    body?.user?.id, body?.user?.pk,
+    body?.data?.id, body?.data?.user_id, body?.data?.pk,
+    body?.data?.user?.id, body?.data?.user?.pk,
+    body?.result?.id, body?.result?.user_id, body?.result?.pk,
+    body?.results?.[0]?.id, body?.results?.[0]?.pk,
+    body?.users?.[0]?.id, body?.users?.[0]?.pk,
+    body?.data?.users?.[0]?.id, body?.data?.users?.[0]?.pk
+  ];
+  const found = candidates.find(v => v !== undefined && v !== null && String(v).trim());
+  return found ? String(found) : '';
+}
+
+app.get('/api/instagram/resolve-user', authGuard, async (req, res) => {
+  const username = String(req.query?.username || '').trim().replace(/^@/, '');
+  const db = readDB();
+  if (!username) return res.status(400).json({ error: 'Kullanıcı adı girin.' });
+  if (!db.settings.apiKey) return res.status(400).json({ error: 'Önce RapidAPI anahtarını kaydedin.' });
+  if (!db.settings.userLookupPath) return res.status(400).json({ error: 'User ID bulma API Path ayarlanmamış.' });
+
+  try {
+    const response = await axios.get(`https://${db.settings.apiHost}${db.settings.userLookupPath}`, {
+      params: { username, user_name: username, query: username },
+      headers: { 'x-rapidapi-key': db.settings.apiKey, 'x-rapidapi-host': db.settings.apiHost },
+      timeout: 30000
+    });
+    const userId = extractUserId(response.data);
+    if (!userId) return res.status(404).json({ error: "API kullanıcı ID'sini bulamadı. User ID API Path ve sağlayıcının yanıt formatını kontrol edin." });
+    res.json({ success: true, username, userId });
+  } catch (error) {
+    const detail = error.response?.data?.message || error.response?.data?.error || error.message;
+    res.status(error.response?.status || 502).json({ error: `Kullanıcı ID bulunamadı: ${detail}` });
+  }
+});
+
 // PROFILES
 app.get('/api/profiles', authGuard, (req, res) => {
   res.json(readDB().profiles);
 });
 
 app.post('/api/profiles', authGuard, (req, res) => {
-  const { username, userId } = req.body;
-  if (!username || !userId) {
-    return res.status(400).json({ error: 'Kullanıcı adı ve User ID zorunludur.' });
-  }
+  const username = String(req.body?.username || '').toLowerCase().trim().replace(/^@/, '');
+  const userId = String(req.body?.userId || '').trim();
+  if (!username || !userId) return res.status(400).json({ error: 'Kullanıcı adı ve User ID zorunludur.' });
 
   const db = readDB();
-  const exists = db.profiles.find(p => p.userId === userId.trim());
+  const exists = db.profiles.find(p => p.userId === userId || p.username === username);
   if (exists) return res.status(400).json({ error: 'Bu profil zaten eklenmiş.' });
 
   const newProfile = {
     id: Date.now().toString(),
-    username: username.toLowerCase().trim().replace(/^@/, ''),
-    userId: userId.trim(),
+    username,
+    userId,
     muted: false,
     addedAt: new Date().toISOString()
   };
@@ -204,6 +259,27 @@ app.patch('/api/profiles/:id/toggle-mute', authGuard, (req, res) => {
   profile.muted = !profile.muted;
   writeDB(db);
   res.json({ success: true, muted: profile.muted });
+});
+
+// MEDIA DOWNLOAD
+app.get('/api/media/:id/download', authGuard, async (req, res) => {
+  const db = readDB();
+  const media = db.media.find(m => String(m.id) === String(req.params.id));
+  if (!media) return res.status(404).send('Medya bulunamadı.');
+  const target = media.videoUrl || media.url;
+  if (!target || !/^https?:\/\//i.test(target)) return res.status(404).send('İndirilebilir medya URLsi bulunamadı.');
+
+  try {
+    const response = await axios.get(target, { responseType: 'stream', timeout: 60000, maxRedirects: 5 });
+    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    const ext = contentType.includes('mp4') ? 'mp4' : contentType.includes('webp') ? 'webp' : contentType.includes('png') ? 'png' : 'jpg';
+    const safeName = `${media.profileUsername || 'instagram'}-${String(media.id).replace(/[^a-zA-Z0-9_-]/g, '')}.${ext}`;
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    response.data.pipe(res);
+  } catch (error) {
+    res.status(502).send('Medya indirilemedi. Kaynak URL artık geçerli olmayabilir.');
+  }
 });
 
 // MEDIA / LOGS
@@ -324,8 +400,26 @@ function normalizeMedia(item, profile) {
   };
 }
 
+async function fetchInstagramStoriesForProfile(profile, targetCount = 50) {
+  const db = readDB();
+  if (!db.settings.storyPath || !db.settings.apiKey) return [];
+  const response = await axios.get(`https://${db.settings.apiHost}${db.settings.storyPath}`, {
+    params: { user_id: profile.userId, username: profile.username, count: targetCount },
+    headers: { 'x-rapidapi-key': db.settings.apiKey, 'x-rapidapi-host': db.settings.apiHost },
+    timeout: 30000
+  });
+  const body = response.data;
+  return body?.items || body?.data?.items || body?.data?.stories || body?.stories || [];
+}
+
 async function syncProfile(profile, targetCount = 500) {
-  const items = await fetchInstagramDataForProfile(profile, targetCount);
+  let items = await fetchInstagramDataForProfile(profile, targetCount);
+  try {
+    const stories = await fetchInstagramStoriesForProfile(profile, 50);
+    items = items.concat(stories.map(x => ({ ...x, is_story: true, story_type: 'story' })));
+  } catch (storyError) {
+    logEvent('WARN', `@${profile.username}: Hikâyeler alınamadı: ${storyError.message}`, profile.username);
+  }
   const db = readDB();
 
   const beforeIds = new Set(db.media.filter(m => m.profileId === profile.id).map(m => String(m.id)));
