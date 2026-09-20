@@ -4,21 +4,21 @@ const bcrypt = require('bcryptjs');
 
 const DB_PATH = path.join(__dirname, 'data.json');
 
-// Varsayılan şifreyi otomatik hash'liyoruz
-const defaultPassword = 'admin123';
-const salt = bcrypt.genSaltSync(10);
-const hashedPassword = bcrypt.hashSync(defaultPassword, salt);
+const defaultPassword = process.env.ADMIN_PASSWORD || 'admin123';
+const hashedPassword = bcrypt.hashSync(defaultPassword, 10);
 
 const initialData = {
   settings: {
-    apiKey: '518c91728cmsh00a32464782b771p1a05a7jsn9e58a595c3e4',
-    apiHost: 'instagram-scraper2.p.rapidapi.com',
-    adminUser: 'admin',
-    adminPassHash: hashedPassword 
+    apiKey: '',
+    apiHost: process.env.INSTAGRAM_API_HOST || 'instagram-scraper2.p.rapidapi.com',
+    apiPath: process.env.INSTAGRAM_API_PATH || '/user_medias',
+    adminUser: process.env.ADMIN_USER || 'admin',
+    adminPassHash: hashedPassword
   },
-  profiles: [], // { id, username, userId, muted: false, addedAt }
-  media: [],    // { id, profileId, type: 'reel'|'story'|'post', url, caption, likes, comments, timestamp }
-  logs: []      // { id, timestamp, type: 'LIKE'|'COMMENT'|'NEW_POST'|'SYSTEM', message, profileUsername }
+  profiles: [],
+  media: [],
+  logs: [],
+  pushSubscriptions: []
 };
 
 function readDB() {
@@ -27,10 +27,15 @@ function readDB() {
     return initialData;
   }
   try {
-    const data = fs.readFileSync(DB_PATH, 'utf8');
-    return JSON.parse(data);
+    const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+    data.settings ||= initialData.settings;
+    data.profiles ||= [];
+    data.media ||= [];
+    data.logs ||= [];
+    data.pushSubscriptions ||= [];
+    return data;
   } catch (err) {
-    console.error("DB Okuma Hatası, sıfırlanıyor:", err);
+    console.error('DB Okuma Hatası, sıfırlanıyor:', err);
     return initialData;
   }
 }

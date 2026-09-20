@@ -1,17 +1,19 @@
 {
   "name": "instagram-enterprise-tracker",
-  "version": "1.0.0",
-  "description": "Enterprise Instagram Scraper & Content Tracker PWA",
+  "version": "1.1.0",
+  "description": "Instagram content tracker PWA with web push notifications",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "generate-vapid": "web-push generate-vapid-keys"
   },
   "dependencies": {
     "axios": "^1.6.8",
     "bcryptjs": "^2.4.3",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "web-push": "^3.6.7"
   },
   "engines": {
     "node": ">=18.0.0"

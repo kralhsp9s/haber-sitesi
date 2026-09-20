@@ -4,33 +4,78 @@ const bcrypt = require('bcryptjs');
 const cron = require('node-cron');
 const axios = require('axios');
 const path = require('path');
+const webpush = require('web-push');
 const { readDB, writeDB } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Express Session Yapılandırması
 app.use(session({
-  secret: 'enterprise-insta-secret-key-2026',
+  secret: process.env.SESSION_SECRET || 'change-this-session-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24 saat
+  cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// Auth Middleware (Giriş Yapılmamışsa Erişimi Engeller)
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || '';
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || '';
+const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+
+if (vapidPublicKey && vapidPrivateKey) {
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+}
+
 function authGuard(req, res, next) {
-  if (req.session && req.session.authenticated) {
-    return next();
-  }
+  if (req.session?.authenticated) return next();
   return res.status(401).json({ error: 'Yetkisiz erişim. Lütfen giriş yapın.' });
 }
 
-// ---------------- API ENDPOINTS ----------------
+function logEvent(type, message, profileUsername = '') {
+  const db = readDB();
+  db.logs.unshift({
+    id: `${Date.now()}-${Math.random()}`,
+    timestamp: new Date().toLocaleString('tr-TR'),
+    type,
+    message,
+    profileUsername
+  });
+  db.logs = db.logs.slice(0, 500);
+  writeDB(db);
+}
 
-// 1. LOGIN
+async function sendPushNotification(title, body, url = '/') {
+  if (!vapidPublicKey || !vapidPrivateKey) return;
+
+  const db = readDB();
+  const subscriptions = db.pushSubscriptions || [];
+
+  const payload = JSON.stringify({
+    title,
+    body,
+    url,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png'
+  });
+
+  const remaining = [];
+
+  for (const subscription of subscriptions) {
+    try {
+      await webpush.sendNotification(subscription, payload);
+      remaining.push(subscription);
+    } catch (err) {
+      if (err.statusCode !== 404 && err.statusCode !== 410) remaining.push(subscription);
+    }
+  }
+
+  db.pushSubscriptions = remaining;
+  writeDB(db);
+}
+
+// LOGIN
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
   const db = readDB();
@@ -40,38 +85,84 @@ app.post('/api/login', (req, res) => {
     req.session.user = username;
     return res.json({ success: true, message: 'Giriş başarılı.' });
   }
+
   return res.status(400).json({ success: false, message: 'Kullanıcı adı veya şifre hatalı!' });
 });
 
-// 2. LOGOUT
 app.post('/api/logout', (req, res) => {
-  req.session.destroy();
-  res.json({ success: true });
+  req.session.destroy(() => res.json({ success: true }));
 });
 
-// 3. AUTH STATUS
 app.get('/api/auth-check', (req, res) => {
-  res.json({ authenticated: !!(req.session && req.session.authenticated) });
+  res.json({ authenticated: !!req.session?.authenticated });
 });
 
-// 4. API KEY & SETTINGS UPDATE
+// SETTINGS
 app.post('/api/settings', authGuard, (req, res) => {
-  const { apiKey } = req.body;
+  const { apiKey, apiHost, apiPath } = req.body;
   const db = readDB();
-  if (apiKey) db.settings.apiKey = apiKey.trim();
+
+  if (typeof apiKey === 'string') db.settings.apiKey = apiKey.trim();
+  if (typeof apiHost === 'string' && apiHost.trim()) db.settings.apiHost = apiHost.trim();
+  if (typeof apiPath === 'string' && apiPath.trim()) db.settings.apiPath = apiPath.trim();
+
   writeDB(db);
-  res.json({ success: true, message: 'API Anahtarı başarıyla güncellendi.' });
+  res.json({ success: true, message: 'Ayarlar kaydedildi.' });
 });
 
 app.get('/api/settings', authGuard, (req, res) => {
   const db = readDB();
-  res.json({ apiKey: db.settings.apiKey, apiHost: db.settings.apiHost });
+  res.json({
+    apiKey: db.settings.apiKey,
+    apiHost: db.settings.apiHost,
+    apiPath: db.settings.apiPath,
+    vapidConfigured: Boolean(vapidPublicKey && vapidPrivateKey)
+  });
 });
 
-// 5. PROFILLERI GETIR VE EKLE
-app.get('/api/profiles', authGuard, (req, res) => {
+// PUSH
+app.get('/api/push/public-key', authGuard, (req, res) => {
+  if (!vapidPublicKey) {
+    return res.status(503).json({ error: 'VAPID anahtarları yapılandırılmamış.' });
+  }
+  res.json({ publicKey: vapidPublicKey });
+});
+
+app.post('/api/push/subscribe', authGuard, (req, res) => {
+  const subscription = req.body;
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+    return res.status(400).json({ error: 'Geçersiz push aboneliği.' });
+  }
+
   const db = readDB();
-  res.json(db.profiles);
+  db.pushSubscriptions ||= [];
+
+  const exists = db.pushSubscriptions.some(s => s.endpoint === subscription.endpoint);
+  if (!exists) db.pushSubscriptions.push(subscription);
+
+  writeDB(db);
+  res.json({ success: true });
+});
+
+app.delete('/api/push/subscribe', authGuard, (req, res) => {
+  const endpoint = req.body?.endpoint;
+  const db = readDB();
+  db.pushSubscriptions = (db.pushSubscriptions || []).filter(s => s.endpoint !== endpoint);
+  writeDB(db);
+  res.json({ success: true });
+});
+
+app.post('/api/push/test', authGuard, async (req, res) => {
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    return res.status(503).json({ error: 'VAPID anahtarları yapılandırılmamış.' });
+  }
+  await sendPushNotification('Bildirimler aktif 🔔', 'Bildirim sistemi başarıyla çalışıyor.', '/');
+  res.json({ success: true });
+});
+
+// PROFILES
+app.get('/api/profiles', authGuard, (req, res) => {
+  res.json(readDB().profiles);
 });
 
 app.post('/api/profiles', authGuard, (req, res) => {
@@ -81,14 +172,12 @@ app.post('/api/profiles', authGuard, (req, res) => {
   }
 
   const db = readDB();
-  const exists = db.profiles.find(p => p.userId === userId);
-  if (exists) {
-    return res.status(400).json({ error: 'Bu profil zaten eklenmiş.' });
-  }
+  const exists = db.profiles.find(p => p.userId === userId.trim());
+  if (exists) return res.status(400).json({ error: 'Bu profil zaten eklenmiş.' });
 
   const newProfile = {
     id: Date.now().toString(),
-    username: username.toLowerCase().trim(),
+    username: username.toLowerCase().trim().replace(/^@/, ''),
     userId: userId.trim(),
     muted: false,
     addedAt: new Date().toISOString()
@@ -99,156 +188,237 @@ app.post('/api/profiles', authGuard, (req, res) => {
     id: Date.now().toString(),
     timestamp: new Date().toLocaleString('tr-TR'),
     type: 'SYSTEM',
-    message: `@${newProfile.username} takibe alındı (User ID: ${userId}).`,
+    message: `@${newProfile.username} takibe alındı (User ID: ${newProfile.userId}).`,
     profileUsername: newProfile.username
   });
-
   writeDB(db);
+
   res.json({ success: true, profile: newProfile });
 });
 
-// 6. PROFIL AYARI GÜNCELLE (Sessize Al / Bildirim Aç)
 app.patch('/api/profiles/:id/toggle-mute', authGuard, (req, res) => {
   const db = readDB();
   const profile = db.profiles.find(p => p.id === req.params.id);
-  if (!profile) return res.status(404).json({ error: 'Profil bulunamadı' });
+  if (!profile) return res.status(404).json({ error: 'Profil bulunamadı.' });
 
   profile.muted = !profile.muted;
   writeDB(db);
   res.json({ success: true, muted: profile.muted });
 });
 
-// 7. MEDYALARI LİSTELE
+// MEDIA / LOGS
 app.get('/api/media', authGuard, (req, res) => {
-  const db = readDB();
-  res.json(db.media);
+  res.json(readDB().media);
 });
 
-// 8. CANLI SISTEM LOGLARI
 app.get('/api/logs', authGuard, (req, res) => {
-  const db = readDB();
-  res.json(db.logs);
+  res.json(readDB().logs);
 });
 
-// ---------------- INSTAGRAM DATA SCRAPER ----------------
-async function fetchInstagramDataForProfile(profile) {
+// ---------------- INSTAGRAM MEDIA IMPORT ----------------
+// Bu endpoint profil akışını (user media) hedefler.
+// Mevcut RapidAPI sağlayıcınız farklı bir path kullanıyorsa
+// INSTAGRAM_API_PATH veya paneldeki API Path alanını değiştirin.
+async function fetchInstagramDataForProfile(profile, targetCount = 500) {
   const db = readDB();
   const apiKey = db.settings.apiKey;
   const apiHost = db.settings.apiHost;
+  const apiPath = db.settings.apiPath || '/user_medias';
 
-  if (!apiKey) return;
+  if (!apiKey) throw new Error('RapidAPI anahtarı ayarlanmamış.');
 
-  try {
-    const options = {
-      method: 'GET',
-      url: `https://${apiHost}/user_tagged`,
-      params: { user_id: profile.userId, count: 50 },
+  const collected = [];
+  let cursor = undefined;
+  let page = 0;
+
+  while (collected.length < targetCount && page < 20) {
+    const params = {
+      user_id: profile.userId,
+      username: profile.username,
+      count: Math.min(50, targetCount - collected.length)
+    };
+
+    if (cursor) {
+      params.cursor = cursor;
+      params.max_id = cursor;
+      params.next_max_id = cursor;
+    }
+
+    const response = await axios.get(`https://${apiHost}${apiPath}`, {
+      params,
       headers: {
         'x-rapidapi-key': apiKey,
         'x-rapidapi-host': apiHost,
         'Content-Type': 'application/json'
-      }
-    };
+      },
+      timeout: 30000
+    });
 
-    const response = await axios.request(options);
-    const apiData = response.data;
+    const body = response.data;
+    const items =
+      body?.items ||
+      body?.data?.items ||
+      body?.data?.medias ||
+      body?.data?.media ||
+      body?.data ||
+      body?.results ||
+      [];
 
-    if (apiData && (apiData.items || apiData.data)) {
-      const items = apiData.items || apiData.data || [];
-      
-      const isFirstSync = !db.media.some(m => m.profileId === profile.id);
+    if (!Array.isArray(items) || items.length === 0) break;
 
-      items.forEach(item => {
-        const mediaId = item.id || item.pk;
-        const currentLikes = item.like_count || 0;
-        const currentComments = item.comment_count || 0;
-        const mediaType = item.media_type === 2 ? 'reel' : (item.story_type ? 'story' : 'post');
-        const mediaUrl = item.image_versions2?.candidates?.[0]?.url || item.video_versions?.[0]?.url || '';
-        const caption = item.caption?.text || 'Açıklama yok';
+    collected.push(...items);
 
-        const existingMedia = db.media.find(m => m.id === mediaId);
+    cursor =
+      body?.next_cursor ||
+      body?.pagination?.next_cursor ||
+      body?.data?.next_cursor ||
+      body?.data?.pagination?.next_cursor ||
+      body?.next_max_id ||
+      body?.data?.next_max_id ||
+      null;
 
-        if (!existingMedia) {
-          db.media.push({
-            id: mediaId,
-            profileId: profile.id,
-            profileUsername: profile.username,
-            type: mediaType,
-            url: mediaUrl,
-            caption: caption,
-            likes: currentLikes,
-            comments: currentComments,
-            timestamp: new Date().toLocaleString('tr-TR')
-          });
+    page++;
 
-          if (!isFirstSync && !profile.muted) {
-            db.logs.unshift({
-              id: Date.now().toString() + Math.random(),
-              timestamp: new Date().toLocaleString('tr-TR'),
-              type: 'NEW_POST',
-              message: `@${profile.username} yeni bir ${mediaType.toUpperCase()} paylaştı!`,
-              profileUsername: profile.username
-            });
-          }
-        } else {
-          if (currentLikes > existingMedia.likes) {
-            existingMedia.likes = currentLikes;
-          }
-          if (currentComments > existingMedia.comments) {
-            existingMedia.comments = currentComments;
-          }
-        }
-      });
-      
-      if (isFirstSync) {
-        db.logs.unshift({
-          id: Date.now().toString(),
-          timestamp: new Date().toLocaleString('tr-TR'),
-          type: 'SYSTEM',
-          message: `@${profile.username} için geçmiş arşiv başarıyla çekildi. (${items.length} içerik)`,
-          profileUsername: profile.username
-        });
-      }
-
-      writeDB(db);
-    }
-  } catch (error) {
-    console.error(`[API ERROR] @${profile.username}:`, error.message);
+    if (!cursor || items.length < 2) break;
   }
-} // <-- EKSİK OLAN PARANTEZ BURAYA EKLENDİ
 
-// MANÜEL TETİKLEME / CRON ORTAK METODU
+  return collected.slice(0, targetCount);
+}
+
+function normalizeMedia(item, profile) {
+  const mediaId = String(item.id || item.pk || item.media_id || item.code || `${profile.id}-${Date.now()}-${Math.random()}`);
+
+  const mediaTypeRaw = item.media_type ?? item.type;
+  const mediaType =
+    item.is_reel || item.product_type === 'clips' || mediaTypeRaw === 2 || mediaTypeRaw === 'reel'
+      ? 'reel'
+      : item.story_type || item.is_story
+        ? 'story'
+        : 'post';
+
+  const imageUrl =
+    item.image_versions2?.candidates?.[0]?.url ||
+    item.thumbnail_url ||
+    item.display_url ||
+    item.image_url ||
+    item.url ||
+    '';
+
+  const videoUrl =
+    item.video_versions?.[0]?.url ||
+    item.video_url ||
+    '';
+
+  return {
+    id: mediaId,
+    profileId: profile.id,
+    profileUsername: profile.username,
+    type: mediaType,
+    url: imageUrl || videoUrl || '',
+    videoUrl,
+    caption: item.caption?.text || item.caption || item.title || 'Açıklama yok',
+    likes: Number(item.like_count ?? item.likes ?? 0),
+    comments: Number(item.comment_count ?? item.comments ?? 0),
+    takenAt: item.taken_at || item.timestamp || item.created_at || null,
+    timestamp: new Date().toISOString()
+  };
+}
+
+async function syncProfile(profile, targetCount = 500) {
+  const items = await fetchInstagramDataForProfile(profile, targetCount);
+  const db = readDB();
+
+  const beforeIds = new Set(db.media.filter(m => m.profileId === profile.id).map(m => String(m.id)));
+  let added = 0;
+
+  for (const item of items) {
+    const media = normalizeMedia(item, profile);
+    const existing = db.media.find(m => String(m.id) === String(media.id));
+
+    if (!existing) {
+      db.media.push(media);
+      added++;
+
+      if (!beforeIds.has(media.id) && !profile.muted) {
+        await sendPushNotification(
+          `@${profile.username} yeni paylaşım yaptı`,
+          media.caption?.slice(0, 120) || 'Yeni bir Instagram içeriği yayınlandı.',
+          '/'
+        );
+      }
+    } else {
+      existing.likes = Math.max(Number(existing.likes || 0), media.likes);
+      existing.comments = Math.max(Number(existing.comments || 0), media.comments);
+      if (media.url) existing.url = media.url;
+      if (media.videoUrl) existing.videoUrl = media.videoUrl;
+      if (media.takenAt) existing.takenAt = media.takenAt;
+    }
+  }
+
+  // Son 500 kayıtla sınırla; eski arşiv kayıtlarını sonsuza kadar büyütmez.
+  const profileMedia = db.media
+    .filter(m => m.profileId === profile.id)
+    .sort((a, b) => new Date(b.takenAt || b.timestamp) - new Date(a.takenAt || a.timestamp));
+
+  const keepIds = new Set(profileMedia.slice(0, 500).map(m => String(m.id)));
+  db.media = db.media.filter(m => m.profileId !== profile.id || keepIds.has(String(m.id)));
+
+  db.logs.unshift({
+    id: `${Date.now()}-${Math.random()}`,
+    timestamp: new Date().toLocaleString('tr-TR'),
+    type: 'SYNC',
+    message: `@${profile.username}: ${items.length} içerik kontrol edildi, ${added} yeni içerik eklendi.`,
+    profileUsername: profile.username
+  });
+  db.logs = db.logs.slice(0, 500);
+
+  writeDB(db);
+  return { checked: items.length, added };
+}
+
 async function runDailyScraperQueue() {
   const db = readDB();
-  if (db.profiles.length === 0) {
-    console.log('[CRON] Takip edilen profil yok. Tarama pas geçildi.');
-    return;
-  }
-  console.log(`[CRON LOG] Günde 8 istek hakkından biri çalıştırılıyor. Toplam Profil: ${db.profiles.length}`);
-  
+  if (!db.profiles.length) return;
+
   for (const profile of db.profiles) {
-    await fetchInstagramDataForProfile(profile);
+    try {
+      await syncProfile(profile, 500);
+    } catch (error) {
+      console.error(`[API ERROR] @${profile.username}:`, error.message);
+      logEvent('ERROR', `@${profile.username}: ${error.message}`, profile.username);
+    }
   }
 }
 
-// MANÜEL SENKRONİZASYON API
+app.post('/api/profiles/:id/sync-500', authGuard, async (req, res) => {
+  const db = readDB();
+  const profile = db.profiles.find(p => p.id === req.params.id);
+  if (!profile) return res.status(404).json({ error: 'Profil bulunamadı.' });
+
+  try {
+    const result = await syncProfile(profile, 500);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/sync-now', authGuard, async (req, res) => {
   await runDailyScraperQueue();
-  res.json({ success: true, message: 'Instagram verileri başarıyla güncellendi.' });
+  res.json({ success: true, message: 'Instagram verileri güncellendi.' });
 });
 
-// CRON ZAMANLAYICI: Her 3 saatte bir çalışır (Günde tam 8 İstek)
+// 3 saatte bir otomatik kontrol
 cron.schedule('0 */3 * * *', () => {
-  console.log('[CRON OTO] 3 Saatlik periyot tetiklendi.');
-  runDailyScraperQueue();
+  runDailyScraperQueue().catch(console.error);
 });
 
-// Static Dosya Sunumu
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`====================================================`);
-  console.log(`🚀 Instagram Enterprise System Render'da Aktif!`);
+  console.log('====================================================');
+  console.log('🚀 Instagram Enterprise Tracker aktif');
   console.log(`PORT: ${PORT}`);
-  console.log(`====================================================`);
+  console.log(`PUSH: ${vapidPublicKey ? 'aktif' : 'VAPID ayarı bekleniyor'}`);
+  console.log('====================================================');
 });
