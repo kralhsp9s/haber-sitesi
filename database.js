@@ -1,15 +1,20 @@
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 
 const DB_PATH = path.join(__dirname, 'data.json');
+
+// Varsayılan şifreyi otomatik hash'liyoruz
+const defaultPassword = 'admin123';
+const salt = bcrypt.genSaltSync(10);
+const hashedPassword = bcrypt.hashSync(defaultPassword, salt);
 
 const initialData = {
   settings: {
     apiKey: '518c91728cmsh00a32464782b771p1a05a7jsn9e58a595c3e4',
     apiHost: 'instagram-scraper2.p.rapidapi.com',
     adminUser: 'admin',
-    // Varsayılan şifre: 'admin123' (Girişte değiştirebilirsiniz)
-    adminPassHash: '$2a$10$E2.3N1ZzY48P4W/.k42P2O5uB7YpZ71m3L5yMvQ2g2f3Y7Wq6mHkW' 
+    adminPassHash: hashedPassword 
   },
   profiles: [], // { id, username, userId, muted: false, addedAt }
   media: [],    // { id, profileId, type: 'reel'|'story'|'post', url, caption, likes, comments, timestamp }
