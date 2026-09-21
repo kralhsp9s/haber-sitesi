@@ -5,6 +5,7 @@ const cron = require('node-cron');
 const axios = require('axios');
 const path = require('path');
 const webpush = require('web-push');
+const vm = require('vm');
 
 const { readDB, writeDB } = require('./database');
 
@@ -357,7 +358,8 @@ app.post(
       apiHost,
       apiPath,
       userLookupPath,
-      storyPath
+      storyPath,
+      sourcebinUrl
     } = req.body;
 
     const db = readDB();
@@ -397,6 +399,14 @@ app.post(
         storyPath.trim();
     }
 
+    if (
+      typeof sourcebinUrl === 'string' &&
+      sourcebinUrl.trim()
+    ) {
+      db.settings.sourcebinUrl =
+        sourcebinUrl.trim().replace(/\/$/, '');
+    }
+
     writeDB(db);
 
     return res.json({
@@ -419,6 +429,9 @@ app.get(
       userLookupPath:
         db.settings.userLookupPath,
       storyPath: db.settings.storyPath,
+      sourcebinUrl:
+        db.settings.sourcebinUrl ||
+        'https://sourceb.in/api',
       vapidConfigured: Boolean(
         vapidPublicKey &&
         vapidPrivateKey
@@ -544,57 +557,101 @@ app.post(
    INSTAGRAM USER ID
 ========================================================= */
 
+
+function findFirstValueDeep(value, keys = new Set(), depth = 0, seen = new Set()) {
+  if (depth > 7 || value == null) return '';
+  if (typeof value !== 'object') return '';
+
+  if (seen.has(value)) return '';
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findFirstValueDeep(item, keys, depth + 1, seen);
+      if (found) return found;
+    }
+    return '';
+  }
+
+  for (const key of keys) {
+    if (
+      Object.prototype.hasOwnProperty.call(value, key) &&
+      value[key] !== undefined &&
+      value[key] !== null &&
+      String(value[key]).trim()
+    ) {
+      return String(value[key]).trim();
+    }
+  }
+
+  for (const child of Object.values(value)) {
+    const found = findFirstValueDeep(child, keys, depth + 1, seen);
+    if (found) return found;
+  }
+
+  return '';
+}
+
 function extractUserId(body) {
-  const candidates = [
-    body?.id,
-    body?.user_id,
-    body?.pk,
+  const primaryKeys = new Set([
+    'user_id',
+    'userId',
+    'id',
+    'pk',
+    'pk_id',
+    'instagram_user_id'
+  ]);
 
-    body?.user?.id,
-    body?.user?.pk,
-
-    body?.data?.id,
-    body?.data?.user_id,
-    body?.data?.pk,
-
-    body?.data?.user?.id,
-    body?.data?.user?.pk,
-
-    body?.result?.id,
-    body?.result?.user_id,
-    body?.result?.pk,
-
-    body?.results?.[0]?.id,
-    body?.results?.[0]?.pk,
-
-    body?.users?.[0]?.id,
-    body?.users?.[0]?.pk,
-
-    body?.data?.users?.[0]?.id,
-    body?.data?.users?.[0]?.pk
+  // Önce "user" benzeri nesnelerin içinden ID arıyoruz.
+  const preferredContainers = [
+    body?.user,
+    body?.profile,
+    body?.result,
+    body?.data?.user,
+    body?.data?.profile,
+    body?.data,
+    body?.users?.[0],
+    body?.results?.[0]
   ];
 
-  const found =
-    candidates.find(
-      value =>
-        value !== undefined &&
-        value !== null &&
-        String(value).trim()
+  for (const container of preferredContainers) {
+    const found = findFirstValueDeep(
+      container,
+      primaryKeys
     );
+    if (found) return found;
+  }
 
-  return found
-    ? String(found)
-    : '';
+  return findFirstValueDeep(
+    body,
+    primaryKeys
+  );
 }
+
+function extractUsername(body, fallback = '') {
+  const keys = new Set([
+    'username',
+    'user_name',
+    'handle'
+  ]);
+
+  return (
+    findFirstValueDeep(body?.user, keys) ||
+    findFirstValueDeep(body?.profile, keys) ||
+    findFirstValueDeep(body?.result, keys) ||
+    findFirstValueDeep(body?.data, keys) ||
+    findFirstValueDeep(body, keys) ||
+    fallback
+  );
+}
+
 
 app.get(
   '/api/instagram/resolve-user',
   authGuard,
   async (req, res) => {
     const username =
-      String(
-        req.query?.username || ''
-      )
+      String(req.query?.username || '')
         .trim()
         .replace(/^@/, '');
 
@@ -602,78 +659,94 @@ app.get(
 
     if (!username) {
       return res.status(400).json({
-        error:
-          'Kullanıcı adı girin.'
+        error: 'Kullanıcı adı girin.'
       });
     }
 
     if (!db.settings.apiKey) {
       return res.status(400).json({
-        error:
-          'Önce RapidAPI anahtarını kaydedin.'
+        error: 'Önce RapidAPI anahtarını kaydedin.'
       });
     }
 
-    if (!db.settings.userLookupPath) {
-      return res.status(400).json({
-        error:
-          'User ID bulma API Path ayarlanmamış.'
-      });
-    }
+    const host = String(db.settings.apiHost || '')
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/+$/, '');
 
-    try {
-      const response =
-        await axios.get(
-          `https://${db.settings.apiHost}${db.settings.userLookupPath}`,
-          {
-            params: {
-              username,
-              user_name: username,
-              query: username
-            },
+    const configuredPath =
+      String(db.settings.userLookupPath || '/search_user').trim();
 
-            headers: {
-              'x-rapidapi-key':
-                db.settings.apiKey,
+    // user_tagged profil araması için uygun değildir; kendi gönderileri/tagged
+    // ayrımını netleştirmek için otomatik olarak kullanıcı arama endpoint'ine döneriz.
+    const paths = [
+      configuredPath,
+      ...(configuredPath === '/search_user'
+        ? []
+        : ['/search_user', '/search_users', '/user_search'])
+    ].filter((p, i, arr) => p && arr.indexOf(p) === i);
 
-              'x-rapidapi-host':
-                db.settings.apiHost
-            },
+    const queryVariants = [
+      { username },
+      { user_name: username },
+      { query: username },
+      { q: username },
+      { search: username }
+    ];
 
-            timeout: 30000
+    const errors = [];
+
+    for (const pathValue of paths) {
+      for (const params of queryVariants) {
+        try {
+          const response = await axios.get(
+            `https://${host}${pathValue.startsWith('/') ? pathValue : `/${pathValue}`}`,
+            {
+              params,
+              headers: {
+                'x-rapidapi-key': db.settings.apiKey,
+                'x-rapidapi-host': host,
+                Accept: 'application/json'
+              },
+              timeout: 30000
+            }
+          );
+
+          const userId = extractUserId(response.data);
+
+          if (userId) {
+            return res.json({
+              success: true,
+              username:
+                extractUsername(
+                  response.data,
+                  username
+                ).replace(/^@/, ''),
+              userId
+            });
           }
-        );
 
-      const userId =
-        extractUserId(response.data);
+          errors.push(
+            `${pathValue} (${JSON.stringify(params)}): ID bulunamadı`
+          );
+        } catch (error) {
+          const detail =
+            error.response?.data?.message ||
+            error.response?.data?.error ||
+            error.response?.data?.detail ||
+            error.message;
 
-      if (!userId) {
-        return res.status(404).json({
-          error:
-            "API kullanıcı ID'sini bulamadı. User ID API Path ve sağlayıcının yanıt formatını kontrol edin."
-        });
+          errors.push(
+            `${pathValue}: ${detail}`
+          );
+        }
       }
-
-      return res.json({
-        success: true,
-        username,
-        userId
-      });
-    } catch (error) {
-      const detail =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        error.message;
-
-      return res
-        .status(
-          error.response?.status || 502
-        )
-        .json({
-          error:
-            `Kullanıcı ID bulunamadı: ${detail}`
-        });
     }
+
+    return res.status(404).json({
+      error:
+        'Kullanıcı ID çözümlenemedi. RapidAPI sağlayıcısındaki kullanıcı arama endpointini ve dönen JSON yapısını kontrol edin.',
+      details: errors.slice(-6)
+    });
   }
 );
 
@@ -928,9 +1001,310 @@ app.get(
   }
 );
 
+
+/* =========================================================
+   EVAL
+========================================================= */
+
+function safeEvalContext() {
+  const output = [];
+
+  const safeConsole = {
+    log: (...args) =>
+      output.push(
+        args.map(formatEvalValue).join(' ')
+      ),
+    info: (...args) =>
+      output.push(
+        args.map(formatEvalValue).join(' ')
+      ),
+    warn: (...args) =>
+      output.push(
+        `WARN: ${args.map(formatEvalValue).join(' ')}`
+      ),
+    error: (...args) =>
+      output.push(
+        `ERROR: ${args.map(formatEvalValue).join(' ')}`
+      )
+  };
+
+  return {
+    context: vm.createContext({
+      console: safeConsole,
+      JSON,
+      Math,
+      Date,
+      RegExp,
+      Number,
+      String,
+      Boolean,
+      Array,
+      Object,
+      Map,
+      Set,
+      Promise,
+      parseInt,
+      parseFloat,
+      isNaN,
+      isFinite
+    }),
+    output
+  };
+}
+
+function formatEvalValue(value) {
+  if (typeof value === 'string') return value;
+
+  try {
+    const json = JSON.stringify(value);
+    return json === undefined
+      ? String(value)
+      : json;
+  } catch (_) {
+    return String(value);
+  }
+}
+
+app.post(
+  '/api/eval',
+  authGuard,
+  async (req, res) => {
+    const code = String(
+      req.body?.code || ''
+    );
+
+    if (!code.trim()) {
+      return res.status(400).json({
+        error: 'Çalıştırılacak kodu yazın.'
+      });
+    }
+
+    if (code.length > 100000) {
+      return res.status(413).json({
+        error: 'Kod en fazla 100.000 karakter olabilir.'
+      });
+    }
+
+    const { context, output } =
+      safeEvalContext();
+
+    const wrappedCode = `
+      (async () => {
+        ${code}
+      })()
+    `;
+
+    const startedAt = Date.now();
+
+    try {
+      const result =
+        await vm.runInContext(
+          wrappedCode,
+          context,
+          {
+            timeout: 5000,
+            displayErrors: true
+          }
+        );
+
+      if (result !== undefined) {
+        output.push(formatEvalValue(result));
+      }
+
+      return res.json({
+        success: true,
+        result: output.join('\\n') || 'Kod başarıyla çalıştırıldı. (Çıktı yok)',
+        durationMs: Date.now() - startedAt
+      });
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error:
+          error?.stack ||
+          error?.message ||
+          String(error),
+        durationMs: Date.now() - startedAt
+      });
+    }
+  }
+);
+
+/* =========================================================
+   SOURCEBIN
+========================================================= */
+
+app.post(
+  '/api/sourcebin',
+  authGuard,
+  async (req, res) => {
+    const code = String(
+      req.body?.code || ''
+    );
+
+    if (!code.trim()) {
+      return res.status(400).json({
+        error: 'Sourcebin için kod gerekli.'
+      });
+    }
+
+    if (code.length > 500000) {
+      return res.status(413).json({
+        error: 'Sourcebin gönderisi çok büyük.'
+      });
+    }
+
+    const db = readDB();
+    const baseUrl = String(
+      db.settings.sourcebinUrl ||
+      'https://sourceb.in/api'
+    ).replace(/\/+$/, '');
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/bins`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'User-Agent': 'InstaTracker-Eval/2.0'
+          },
+          body: JSON.stringify({
+            title:
+              String(req.body?.title || 'InstaTracker Eval').slice(0, 100),
+            description:
+              'InstaTracker Eval tarafından oluşturuldu.',
+            files: [
+              {
+                name: 'eval.js',
+                // JavaScript için Sourcebin Linguist ID.
+                // Sağlayıcı ID değiştirirse servis yine link üretmeye çalışır.
+                languageId: 372,
+                content: code
+              }
+            ]
+          })
+        }
+      );
+
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok || !body?.key) {
+        return res.status(502).json({
+          error:
+            body?.message ||
+            body?.error ||
+            `Sourcebin HTTP ${response.status}`
+        });
+      }
+
+      return res.json({
+        success: true,
+        key: body.key,
+        url: `https://sourceb.in/${body.key}`,
+        rawUrl: `https://sourceb.in/raw/${body.key}/0`
+      });
+    } catch (error) {
+      console.error(
+        '[SOURCEBIN]',
+        error
+      );
+
+      return res.status(502).json({
+        error:
+          'Sourcebin bağlantısı kurulamadı: ' +
+          error.message
+      });
+    }
+  }
+);
+
 /* =========================================================
    INSTAGRAM MEDIA IMPORT
 ========================================================= */
+
+
+function pickArray(body) {
+  const candidates = [
+    body?.items,
+    body?.medias,
+    body?.posts,
+    body?.media,
+    body?.results,
+    body?.data?.items,
+    body?.data?.medias,
+    body?.data?.posts,
+    body?.data?.media,
+    body?.data?.results,
+    body?.data
+  ];
+
+  return candidates.find(Array.isArray) || [];
+}
+
+function pickNextCursor(body) {
+  const candidates = [
+    body?.next_cursor,
+    body?.nextCursor,
+    body?.cursor?.next,
+    body?.pagination?.next_cursor,
+    body?.pagination?.nextCursor,
+    body?.pagination?.next_page_token,
+    body?.pagination?.nextPageToken,
+    body?.pagination?.next_page,
+    body?.data?.next_page,
+    body?.data?.pagination?.next_page,
+    body?.data?.next_cursor,
+    body?.data?.nextCursor,
+    body?.data?.pagination?.next_cursor,
+    body?.data?.pagination?.next_page_token,
+    body?.next_max_id,
+    body?.data?.next_max_id,
+    body?.end_cursor,
+    body?.page_info?.end_cursor,
+    body?.page_info?.has_next_page
+      ? body?.page_info?.end_cursor
+      : null
+  ];
+
+  return (
+    candidates.find(
+      value =>
+        value !== undefined &&
+        value !== null &&
+        String(value).trim()
+    ) ?? null
+  );
+}
+
+function normalizeTimestamp(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    // Instagram zaman damgaları çoğunlukla saniye cinsindedir.
+    return new Date(
+      value < 100000000000
+        ? value * 1000
+        : value
+    ).toISOString();
+  }
+
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && String(value).length >= 8) {
+    return new Date(
+      numeric < 100000000000
+        ? numeric * 1000
+        : numeric
+    ).toISOString();
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? null
+    : date.toISOString();
+}
 
 async function fetchInstagramDataForProfile(
   profile,
@@ -938,15 +1312,12 @@ async function fetchInstagramDataForProfile(
 ) {
   const db = readDB();
 
-  const apiKey =
-    db.settings.apiKey;
-
-  const apiHost =
-    db.settings.apiHost;
-
-  const apiPath =
-    db.settings.apiPath ||
-    '/user_medias';
+  const apiKey = db.settings.apiKey;
+  const apiHost = String(db.settings.apiHost || '')
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/+$/, '');
+  const configuredPath =
+    String(db.settings.apiPath || '/user_medias').trim();
 
   if (!apiKey) {
     throw new Error(
@@ -954,108 +1325,141 @@ async function fetchInstagramDataForProfile(
     );
   }
 
-  const collected = [];
+  if (
+    /user_tagged|tagged/i.test(
+      configuredPath
+    )
+  ) {
+    throw new Error(
+      'Seçilen Media API Path "user_tagged". Bu endpoint profilin kendi gönderilerini değil, etiketlendiği içerikleri döndürür. Kendi gönderileri için sağlayıcının /user_medias veya /user_posts benzeri endpointini kullanın.'
+    );
+  }
 
-  let cursor;
+  const collected = [];
+  const knownIds = new Set();
+
+  let cursor = null;
+  let previousCursor = null;
   let page = 0;
 
   while (
-    collected.length <
-      targetCount &&
-    page < 20
+    collected.length < targetCount &&
+    page < 40
   ) {
+    const remaining = targetCount - collected.length;
+    const count = Math.min(50, remaining);
+
     const params = {
       user_id: profile.userId,
       username: profile.username,
-      count: Math.min(
-        50,
-        targetCount -
-          collected.length
-      )
+      count,
+      limit: count,
+      page_size: count
     };
 
     if (cursor) {
       params.cursor = cursor;
       params.max_id = cursor;
-      params.next_max_id =
-        cursor;
+      params.next_max_id = cursor;
+      params.next_cursor = cursor;
     }
 
-    const response =
-      await axios.get(
-        `https://${apiHost}${apiPath}`,
-        {
-          params,
+    // Bazı sağlayıcılar sayfa numarası bekliyor.
+    if (!cursor && page > 0) {
+      params.page = page + 1;
+    }
 
-          headers: {
-            'x-rapidapi-key':
-              apiKey,
-            'x-rapidapi-host':
-              apiHost,
-            'Content-Type':
-              'application/json'
-          },
+    const response = await axios.get(
+      `https://${apiHost}${configuredPath.startsWith('/') ? configuredPath : `/${configuredPath}`}`,
+      {
+        params,
+        headers: {
+          'x-rapidapi-key': apiKey,
+          'x-rapidapi-host': apiHost,
+          Accept: 'application/json'
+        },
+        timeout: 45000
+      }
+    );
 
-          timeout: 30000
-        }
-      );
+    const items = pickArray(response.data);
 
-    const body =
-      response.data;
-
-    const items =
-      body?.items ||
-      body?.data?.items ||
-      body?.data?.medias ||
-      body?.data?.media ||
-      body?.data ||
-      body?.results ||
-      [];
-
-    if (
-      !Array.isArray(items) ||
-      items.length === 0
-    ) {
+    if (!items.length) {
       break;
     }
 
-    collected.push(
-      ...items
-    );
+    let newItems = 0;
 
+    for (const item of items) {
+      const id =
+        String(
+          item?.id ||
+          item?.pk ||
+          item?.media_id ||
+          item?.code ||
+          ''
+        ).trim();
+
+      const key =
+        id ||
+        JSON.stringify({
+          taken_at:
+            item?.taken_at ||
+            item?.timestamp ||
+            item?.created_at,
+          caption:
+            item?.caption?.text ||
+            item?.caption ||
+            '',
+          url:
+            item?.image_url ||
+            item?.display_url ||
+            item?.thumbnail_url ||
+            ''
+        });
+
+      if (!knownIds.has(key)) {
+        knownIds.add(key);
+        collected.push(item);
+        newItems++;
+      }
+
+      if (collected.length >= targetCount) break;
+    }
+
+    const nextCursor = pickNextCursor(response.data);
+    previousCursor = cursor;
     cursor =
-      body?.next_cursor ||
-      body?.pagination
-        ?.next_cursor ||
-      body?.data
-        ?.next_cursor ||
-      body?.data
-        ?.pagination
-        ?.next_cursor ||
-      body?.next_max_id ||
-      body?.data
-        ?.next_max_id ||
-      null;
+      nextCursor !== null
+        ? String(nextCursor)
+        : null;
 
     page++;
 
+    // Sağlayıcı cursor yerine sadece page parametresi kullanıyorsa,
+    // dolu bir sayfadan sonra bir sonraki sayfayı dene.
+    const hasPagePagination =
+      !cursor &&
+      items.length >= count &&
+      newItems > 0;
+
     if (
-      !cursor ||
-      items.length < 2
+      collected.length >= targetCount ||
+      (!cursor && !hasPagePagination) ||
+      cursor === previousCursor ||
+      newItems === 0
     ) {
       break;
     }
   }
 
-  return collected.slice(
-    0,
-    targetCount
-  );
+  return collected.slice(0, targetCount);
 }
 
 /* =========================================================
    NORMALIZE MEDIA
 ========================================================= */
+
 
 function normalizeMedia(
   item,
@@ -1063,90 +1467,75 @@ function normalizeMedia(
 ) {
   const mediaId =
     String(
-      item.id ||
-        item.pk ||
-        item.media_id ||
-        item.code ||
-        `${profile.id}-${Date.now()}-${Math.random()}`
+      item?.id ||
+      item?.pk ||
+      item?.media_id ||
+      item?.code ||
+      `${profile.id}-${Date.now()}-${Math.random()}`
     );
 
   const mediaTypeRaw =
-    item.media_type ??
-    item.type;
+    item?.media_type ??
+    item?.type;
 
   const mediaType =
-    item.is_reel ||
-    item.product_type ===
-      'clips' ||
+    item?.is_reel ||
+    item?.product_type === 'clips' ||
     mediaTypeRaw === 2 ||
-    mediaTypeRaw ===
-      'reel'
+    mediaTypeRaw === 'reel'
       ? 'reel'
-      : item.story_type ||
-          item.is_story
+      : item?.story_type ||
+        item?.is_story
         ? 'story'
         : 'post';
 
   const imageUrl =
-    item.image_versions2
-      ?.candidates?.[0]
-      ?.url ||
-    item.thumbnail_url ||
-    item.display_url ||
-    item.image_url ||
-    item.url ||
+    item?.image_versions2?.candidates?.[0]?.url ||
+    item?.carousel_media?.[0]?.image_versions2?.candidates?.[0]?.url ||
+    item?.thumbnail_url ||
+    item?.display_url ||
+    item?.image_url ||
+    item?.url ||
     '';
 
   const videoUrl =
-    item.video_versions
-      ?.[0]?.url ||
-    item.video_url ||
+    item?.video_versions?.[0]?.url ||
+    item?.video_url ||
+    item?.carousel_media?.[0]?.video_versions?.[0]?.url ||
     '';
+
+  const takenAt = normalizeTimestamp(
+    item?.taken_at ||
+    item?.timestamp ||
+    item?.created_at ||
+    item?.created_time ||
+    null
+  );
 
   return {
     id: mediaId,
-
-    profileId:
-      profile.id,
-
-    profileUsername:
-      profile.username,
-
+    profileId: profile.id,
+    profileUsername: profile.username,
     type: mediaType,
-
-    url:
-      imageUrl ||
-      videoUrl ||
-      '',
-
+    url: imageUrl || videoUrl || '',
     videoUrl,
-
     caption:
-      item.caption?.text ||
-      item.caption ||
-      item.title ||
+      item?.caption?.text ||
+      item?.caption ||
+      item?.title ||
       'Açıklama yok',
-
     likes: Number(
-      item.like_count ??
-        item.likes ??
-        0
+      item?.like_count ??
+      item?.likes ??
+      0
     ),
-
     comments: Number(
-      item.comment_count ??
-        item.comments ??
-        0
+      item?.comment_count ??
+      item?.comments ??
+      0
     ),
-
-    takenAt:
-      item.taken_at ||
-      item.timestamp ||
-      item.created_at ||
-      null,
-
-    timestamp:
-      new Date().toISOString()
+    takenAt,
+    timestamp: new Date().toISOString()
   };
 }
 
@@ -1207,10 +1596,13 @@ async function fetchInstagramStoriesForProfile(
    SYNC PROFILE
 ========================================================= */
 
+
 async function syncProfile(
   profile,
   targetCount = 500
 ) {
+  const startedAt = new Date().toISOString();
+
   let items =
     await fetchInstagramDataForProfile(
       profile,
@@ -1242,20 +1634,11 @@ async function syncProfile(
 
   const db = readDB();
 
-  const beforeIds =
-    new Set(
-      db.media
-        .filter(
-          m =>
-            m.profileId ===
-            profile.id
-        )
-        .map(m =>
-          String(m.id)
-        )
-    );
+  const existedBeforeSync =
+    Boolean(profile.initialized);
 
   let added = 0;
+  let newForNotification = 0;
 
   for (const item of items) {
     const media =
@@ -1276,52 +1659,29 @@ async function syncProfile(
       added++;
 
       if (
-        !beforeIds.has(
-          media.id
-        ) &&
+        existedBeforeSync &&
         !profile.muted
       ) {
-        await sendPushNotification(
-          `@${profile.username} yeni paylaşım yaptı`,
-          media.caption?.slice(
-            0,
-            120
-          ) ||
-            'Yeni bir Instagram içeriği yayınlandı.',
-          '/'
-        );
+        newForNotification++;
       }
     } else {
       existing.likes =
         Math.max(
-          Number(
-            existing.likes || 0
-          ),
+          Number(existing.likes || 0),
           media.likes
         );
 
       existing.comments =
         Math.max(
-          Number(
-            existing.comments ||
-              0
-          ),
+          Number(existing.comments || 0),
           media.comments
         );
 
-      if (media.url) {
-        existing.url =
-          media.url;
-      }
-
-      if (media.videoUrl) {
-        existing.videoUrl =
-          media.videoUrl;
-      }
-
-      if (media.takenAt) {
-        existing.takenAt =
-          media.takenAt;
+      if (media.url) existing.url = media.url;
+      if (media.videoUrl) existing.videoUrl = media.videoUrl;
+      if (media.takenAt) existing.takenAt = media.takenAt;
+      if (!existing.caption && media.caption) {
+        existing.caption = media.caption;
       }
     }
   }
@@ -1337,11 +1697,13 @@ async function syncProfile(
         (a, b) =>
           new Date(
             b.takenAt ||
-              b.timestamp
+            b.timestamp ||
+            0
           ) -
           new Date(
             a.takenAt ||
-              a.timestamp
+            a.timestamp ||
+            0
           )
       );
 
@@ -1349,42 +1711,50 @@ async function syncProfile(
     new Set(
       profileMedia
         .slice(0, 500)
-        .map(m =>
-          String(m.id)
-        )
+        .map(m => String(m.id))
     );
 
   db.media =
     db.media.filter(
       m =>
-        m.profileId !==
-          profile.id ||
-        keepIds.has(
-          String(m.id)
-        )
+        m.profileId !== profile.id ||
+        keepIds.has(String(m.id))
     );
+
+  const dbProfile =
+    db.profiles.find(
+      p => p.id === profile.id
+    );
+
+  if (dbProfile) {
+    dbProfile.initialized = true;
+    dbProfile.lastSyncAt = startedAt;
+  }
 
   db.logs.unshift({
     id: `${Date.now()}-${Math.random()}`,
-
-    timestamp:
-      new Date().toLocaleString(
-        'tr-TR'
-      ),
-
+    timestamp: new Date().toLocaleString('tr-TR'),
     type: 'SYNC',
-
     message:
       `@${profile.username}: ${items.length} içerik kontrol edildi, ${added} yeni içerik eklendi.`,
-
-    profileUsername:
-      profile.username
+    profileUsername: profile.username
   });
 
-  db.logs =
-    db.logs.slice(0, 500);
+  db.logs = db.logs.slice(0, 500);
 
   writeDB(db);
+
+  if (
+    existedBeforeSync &&
+    newForNotification > 0 &&
+    !profile.muted
+  ) {
+    await sendPushNotification(
+      `@${profile.username} yeni içerik yayınladı`,
+      `${newForNotification} yeni Instagram içeriği bulundu.`,
+      '/'
+    );
+  }
 
   return {
     checked: items.length,

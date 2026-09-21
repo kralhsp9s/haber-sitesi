@@ -12,6 +12,7 @@ function buildDefaults() {
     apiPath: process.env.INSTAGRAM_API_PATH || '/user_medias',
     userLookupPath: process.env.INSTAGRAM_USER_LOOKUP_PATH || '/search_user',
     storyPath: process.env.INSTAGRAM_STORY_PATH || '',
+    sourcebinUrl: process.env.SOURCEBIN_API_URL || 'https://sourceb.in/api',
     adminUser: process.env.ADMIN_USER || 'admin',
     adminPassHash: bcrypt.hashSync(defaultPassword, 10)
   };

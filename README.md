@@ -39,3 +39,36 @@ Not: RapidAPI sağlayıcısına göre endpoint adı ve response alanları deği�
 ### Instagram API
 
 API sağlayıcıları endpoint ve JSON alanlarını değiştirebildiği için `INSTAGRAM_API_PATH`, `INSTAGRAM_USER_LOOKUP_PATH` ve `INSTAGRAM_STORY_PATH` değerlerini kullandığınız RapidAPI dokümantasyonuna göre ayarlayın.
+
+
+## 1.2.x değişiklikleri
+
+### Bildirimler
+Panelde **Bildirim** butonu tarayıcının yerel bildirim iznini ister, Push aboneliğini kaydeder ve test bildirimi yollar. Yeni içerik geldiğinde sonraki senkronizasyonlarda bildirim gönderilir. İlk 500'lük tarihçe yüklenirken bildirim spam'i yapılmaz.
+
+### Ana ekrana ekleme
+**Ana Ekrana Ekle** butonu artık destekleyen tarayıcılarda PWA kurulum penceresini açar. Kurulum API'sini desteklemeyen iPhone/iPad gibi ortamlarda ilgili tarayıcı menüsündeki ana ekrana ekleme adımlarını gösterir.
+
+### Tam Eval
+**Tam Eval** menüsünde:
+- JavaScript kodu çalıştırma,
+- normal metin çıktısını görme,
+- sonucu panoya kopyalama,
+- kodu `.txt` olarak indirme,
+- kodu Sourcebin'e yükleyip bağlantı alma
+
+özellikleri vardır.
+
+Eval alanı sınırlı bir `node:vm` bağlamında çalışır. `require`, `process`, dosya sistemi ve ağ erişimi doğrudan bağlama eklenmez. Bu nedenle tam sunucu yetkili `eval` yerine kontrollü kod çalıştırma yaklaşımı kullanılır.
+
+### Instagram User ID
+User ID çözümleme artık farklı JSON şemalarındaki `id`, `pk`, `user_id`, `userId` gibi alanları ve `user`, `profile`, `data`, `results`, `users` gibi yaygın kapsayıcıları tarar. Yapılandırılan endpoint başarısız olursa `/search_user`, `/search_users` ve `/user_search` fallback yolları da denenir.
+
+### Son 500 içerik
+Media import tarafında cursor, `next_cursor`, `next_max_id`, `end_cursor`, pagination token ve benzeri yaygın sayfalama alanları desteklenir. Aynı kayıt tekrar dönerse dedupe edilir ve 500 benzersiz içerik hedeflenir.
+
+Önemli: `/user_tagged` bir kullanıcının **kendi gönderileri** için değildir; etiketlendiği içerikleri döndürür. Kendi gönderilerini almak için RapidAPI sağlayıcınızın `/user_medias`, `/user_posts` veya eşdeğer endpointini kullanın.
+
+RapidAPI kimlik doğrulamasında `X-RapidAPI-Host` ve `X-RapidAPI-Key` başlıklarının kullanılması gerektiği RapidAPI dokümantasyonunda belirtiliyor. citeturn769200search12
+
+Sourcebin tarafında güncel açık API istemcisi `https://sourceb.in/api/bins` POST akışını kullanıyor. Projede harici Sourcebin npm paketi eklemek yerine Node 18+ yerleşik `fetch` kullanıldı; böylece mevcut `node >=18` şartı korunuyor. citeturn876112view0turn828364view0
