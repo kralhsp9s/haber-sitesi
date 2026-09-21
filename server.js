@@ -667,6 +667,28 @@ function extractUserId(body, expectedUsername = '', options = {}) {
     );
   };
 
+  // XDT/GraphQL Instagram media responses can expose the user identity only
+  // inside data.xdt_api__v1__usertags__user_id__feed_connection.edges[].node.
+  // Prefer the nested user/owner object so a media composite id is never used
+  // as the profile id.
+  const xdtConnections = [
+    body?.data?.xdt_api__v1__usertags__user_id__feed_connection,
+    body?.xdt_api__v1__usertags__user_id__feed_connection,
+    body?.data?.xdt_api__v1__feed_connection,
+    body?.data?.feed_connection
+  ];
+
+  for (const connection of xdtConnections) {
+    const connectionEdges = Array.isArray(connection?.edges) ? connection.edges : [];
+    for (const edge of connectionEdges) {
+      const node = edge?.node;
+      if (!node || typeof node !== 'object') continue;
+      if (!isExpectedUser(node)) continue;
+      const id = getDirectId(node);
+      if (id) return id;
+    }
+  }
+
   // First inspect the common direct profile response shapes. This is important
   // for providers that return {data:{id,username}} instead of a search array.
   const directCandidates = [
@@ -759,6 +781,18 @@ function extractUsername(body, fallback = '') {
     'user_name',
     'handle'
   ]);
+
+  const xdtEdges = [
+    body?.data?.xdt_api__v1__usertags__user_id__feed_connection?.edges,
+    body?.xdt_api__v1__usertags__user_id__feed_connection?.edges,
+    body?.data?.xdt_api__v1__feed_connection?.edges,
+    body?.data?.feed_connection?.edges
+  ].flatMap(value => Array.isArray(value) ? value : []);
+
+  for (const edge of xdtEdges) {
+    const username = findFirstValueDeep(edge?.node, keys);
+    if (username) return String(username).replace(/^@/, '');
+  }
 
   return (
     findFirstValueDeep(body?.user, keys) ||
