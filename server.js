@@ -593,69 +593,188 @@ function findFirstValueDeep(value, keys = new Set(), depth = 0, seen = new Set()
 }
 
 function extractUserId(body, expectedUsername = '') {
-  const primaryKeys = new Set([
-    'user_id', 'userId', 'id', 'pk', 'pk_id', 'instagram_user_id'
-  ]);
+  const normalizedExpected = String(expectedUsername || '')
+    .trim()
+    .replace(/^@/, '')
+    .toLowerCase();
 
-  const usernameKeys = new Set(['username', 'user_name', 'handle']);
-  const normalizedExpected = String(expectedUsername || '').trim().replace(/^@/, '').toLowerCase();
+  const idKeys = [
+    'user_id',
+    'userId',
+    'instagram_user_id',
+    'pk',
+    'pk_id',
+    'id'
+  ];
 
-  // Önce kullanıcı adına tam eşleşen nesneyi bul. Arama endpointleri çoğu zaman
-  // {data:{users:[...]}} veya {users:[...]} döndürür; ilk sonucu körlemesine
-  // almak yanlış hesabın ID'sini kaydetmemize neden olabilir.
-  function findMatchingUser(value, depth = 0, seen = new Set()) {
-    if (!value || typeof value !== 'object' || depth > 9) return '';
-    if (seen.has(value)) return '';
+  const usernameKeys = ['username', 'user_name', 'handle'];
+
+  const asId = value => {
+    if (value === undefined || value === null) return '';
+    const text = String(value).trim();
+
+    // Media IDs in this API can look like "mediaPk_ownerId".
+    // They must never be returned as the Instagram user ID.
+    if (/^\d+_\d+$/.test(text)) {
+      return text.split('_').pop();
+    }
+
+    // A normal numeric Instagram user ID.
+    if (/^\d+$/.test(text)) return text;
+
+    return '';
+  };
+
+  const getDirectId = value => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+
+    // The supplied API response has:
+    // node.owner.id
+    // node.user.id / node.user.pk
+    // These are more authoritative than node.id (which is a media ID).
+    for (const container of [
+      value.user,
+      value.profile,
+      value.owner,
+      value.author,
+      value.account
+    ]) {
+      if (!container || typeof container !== 'object') continue;
+
+      for (const key of ['id', 'pk', 'user_id', 'userId', 'pk_id']) {
+        const id = asId(container[key]);
+        if (id) return id;
+      }
+    }
+
+    for (const key of ['user_id', 'userId', 'instagram_user_id', 'pk_id']) {
+      const id = asId(value[key]);
+      if (id) return id;
+    }
+
+    // Only accept a bare "id" if it is not a media composite ID.
+    return asId(value.id);
+  };
+
+  const getUsername = value => {
+    if (!value || typeof value !== 'object') return '';
+    for (const key of usernameKeys) {
+      const candidate = String(value[key] ?? '').trim();
+      if (candidate) return candidate;
+    }
+    return '';
+  };
+
+  const seen = new Set();
+
+  function findMatching(value, depth = 0) {
+    if (!value || typeof value !== 'object' || depth > 12 || seen.has(value)) {
+      return '';
+    }
     seen.add(value);
 
     if (Array.isArray(value)) {
       for (const item of value) {
-        const found = findMatchingUser(item, depth + 1, seen);
+        const found = findMatching(item, depth + 1);
         if (found) return found;
       }
       return '';
     }
 
-    const candidateUsername = findFirstValueDeep(value, usernameKeys, depth, new Set());
+    const directUsername = getUsername(value);
+    const nestedUsername =
+      getUsername(value.user) ||
+      getUsername(value.profile) ||
+      getUsername(value.owner) ||
+      getUsername(value.author);
+
+    const candidateUsername =
+      directUsername || nestedUsername;
+
     if (
       normalizedExpected &&
       candidateUsername &&
       candidateUsername.replace(/^@/, '').toLowerCase() === normalizedExpected
     ) {
-      return findFirstValueDeep(value, primaryKeys, depth, new Set());
+      return getDirectId(value) || getDirectId(value.user) || getDirectId(value.profile);
     }
 
-    for (const child of Object.values(value)) {
-      const found = findMatchingUser(child, depth + 1, seen);
+    // A common shape is { user: { username, pk } }.
+    for (const child of [
+      value.user,
+      value.profile,
+      value.owner,
+      value.author,
+      value.account
+    ]) {
+      const found = findMatching(child, depth + 1);
       if (found) return found;
     }
+
+    for (const [key, child] of Object.entries(value)) {
+      if (
+        key === 'image_versions2' ||
+        key === 'carousel_media' ||
+        key === 'caption'
+      ) continue;
+
+      const found = findMatching(child, depth + 1);
+      if (found) return found;
+    }
+
     return '';
   }
 
-  const exact = findMatchingUser(body);
+  const exact = findMatching(body);
   if (exact) return exact;
 
-  const preferredContainers = [
-    body?.user,
-    body?.profile,
-    body?.result,
-    body?.data?.user,
-    body?.data?.profile,
-    body?.data?.users,
-    body?.data?.results,
-    body?.users,
-    body?.results,
-    body?.items,
-    body?.data?.items,
-    body?.data
+  // If the response contains an Instagram connection, inspect its edges.
+  // Example:
+  // data.xdt_api__v1__usertags__user_id__feed_connection.edges[].node.user.id
+  const connections = [
+    body?.data?.xdt_api__v1__usertags__user_id__feed_connection,
+    body?.xdt_api__v1__usertags__user_id__feed_connection,
+    body?.data?.xdt_api__v1__feed_connection,
+    body?.data?.feed_connection
   ];
 
-  for (const container of preferredContainers) {
-    const found = findFirstValueDeep(container, primaryKeys);
-    if (found) return found;
+  for (const connection of connections) {
+    const edges = Array.isArray(connection?.edges)
+      ? connection.edges
+      : [];
+
+    for (const edge of edges) {
+      const node = edge?.node || edge;
+      const nodeUsername =
+        getUsername(node?.user) ||
+        getUsername(node?.owner) ||
+        getUsername(node);
+
+      if (
+        normalizedExpected &&
+        nodeUsername &&
+        nodeUsername.replace(/^@/, '').toLowerCase() === normalizedExpected
+      ) {
+        const id = getDirectId(node);
+        if (id) return id;
+      }
+    }
   }
 
-  return findFirstValueDeep(body, primaryKeys);
+  // Finally, prefer explicit user/profile containers over arbitrary "id" fields.
+  for (const container of [
+    body?.user,
+    body?.profile,
+    body?.data?.user,
+    body?.data?.profile,
+    body?.result?.user,
+    body?.result?.profile
+  ]) {
+    const id = getDirectId(container);
+    if (id) return id;
+  }
+
+  return '';
 }
 
 function extractUsername(body, fallback = '') {
@@ -1280,6 +1399,10 @@ function pickArray(body) {
     body?.data?.posts,
     body?.data?.media,
     body?.data?.results,
+    body?.data?.xdt_api__v1__usertags__user_id__feed_connection?.edges,
+    body?.xdt_api__v1__usertags__user_id__feed_connection?.edges,
+    body?.data?.xdt_api__v1__feed_connection?.edges,
+    body?.data?.feed_connection?.edges,
     body?.data
   ];
 
@@ -1308,7 +1431,10 @@ function pickNextCursor(body) {
     body?.page_info?.end_cursor,
     body?.page_info?.has_next_page
       ? body?.page_info?.end_cursor
-      : null
+      : null,
+    body?.data?.xdt_api__v1__usertags__user_id__feed_connection?.page_info?.end_cursor,
+    body?.data?.xdt_api__v1__feed_connection?.page_info?.end_cursor,
+    body?.data?.feed_connection?.page_info?.end_cursor
   ];
 
   return (
@@ -1426,7 +1552,18 @@ async function fetchInstagramDataForProfile(
       }
     );
 
-    const items = pickArray(response.data);
+    let items = pickArray(response.data);
+
+    // GraphQL-style Instagram connections return { edges: [{ node, cursor }] }.
+    // The rest of the importer expects the actual media object.
+    if (
+      Array.isArray(items) &&
+      items.some(item => item && item.node)
+    ) {
+      items = items
+        .map(item => item?.node || item)
+        .filter(Boolean);
+    }
 
     if (!items.length) {
       break;
@@ -1518,6 +1655,16 @@ function normalizeMedia(
       `${profile.id}-${Date.now()}-${Math.random()}`
     );
 
+  const ownerId =
+    String(
+      item?.owner?.id ||
+      item?.user?.id ||
+      item?.user?.pk ||
+      item?.owner_id ||
+      profile.userId ||
+      ''
+    ).trim();
+
   const mediaTypeRaw =
     item?.media_type ??
     item?.type;
@@ -1526,16 +1673,21 @@ function normalizeMedia(
     item?.is_reel ||
     item?.product_type === 'clips' ||
     mediaTypeRaw === 2 ||
-    mediaTypeRaw === 'reel'
+    mediaTypeRaw === 'reel' ||
+    mediaTypeRaw === 'clips'
       ? 'reel'
       : item?.story_type ||
         item?.is_story
         ? 'story'
         : 'post';
 
+  const firstImage =
+    item?.image_versions2?.candidates?.[0] ||
+    item?.carousel_media?.[0]?.image_versions2?.candidates?.[0];
+
   const imageUrl =
-    item?.image_versions2?.candidates?.[0]?.url ||
-    item?.carousel_media?.[0]?.image_versions2?.candidates?.[0]?.url ||
+    firstImage?.url ||
+    item?.display_uri ||
     item?.thumbnail_url ||
     item?.display_url ||
     item?.image_url ||
@@ -1548,6 +1700,17 @@ function normalizeMedia(
     item?.carousel_media?.[0]?.video_versions?.[0]?.url ||
     '';
 
+  const caption =
+    item?.caption?.text ||
+    item?.caption ||
+    item?.title ||
+    '';
+
+  const user =
+    item?.user ||
+    item?.owner ||
+    {};
+
   const takenAt = normalizeTimestamp(
     item?.taken_at ||
     item?.timestamp ||
@@ -1558,16 +1721,27 @@ function normalizeMedia(
 
   return {
     id: mediaId,
+    pk: String(item?.pk || mediaId),
+    code: String(item?.code || ''),
+    ownerId,
     profileId: profile.id,
-    profileUsername: profile.username,
+    profileUsername:
+      String(
+        user?.username ||
+        profile.username ||
+        ''
+      ).replace(/^@/, ''),
+    username:
+      String(user?.username || profile.username || '').replace(/^@/, ''),
     type: mediaType,
+    productType: item?.product_type || 'feed',
     url: imageUrl || videoUrl || '',
     videoUrl,
-    caption:
-      item?.caption?.text ||
-      item?.caption ||
-      item?.title ||
-      'Açıklama yok',
+    displayUri: item?.display_uri || imageUrl || '',
+    caption: caption || 'Açıklama yok',
+    accessibilityCaption:
+      item?.accessibility_caption ||
+      '',
     likes: Number(
       item?.like_count ??
       item?.likes ??
@@ -1578,6 +1752,26 @@ function normalizeMedia(
       item?.comments ??
       0
     ),
+    viewCount:
+      item?.view_count == null
+        ? null
+        : Number(item.view_count),
+    commentsDisabled:
+      item?.comments_disabled ?? null,
+    likeAndViewCountsDisabled:
+      Boolean(item?.like_and_view_counts_disabled),
+    audience:
+      item?.audience ?? null,
+    carouselMediaCount:
+      item?.carousel_media_count ?? null,
+    originalHeight:
+      Number(item?.original_height || firstImage?.height || 0) || null,
+    originalWidth:
+      Number(item?.original_width || firstImage?.width || 0) || null,
+    imageWidth:
+      Number(firstImage?.width || 0) || null,
+    imageHeight:
+      Number(firstImage?.height || 0) || null,
     takenAt,
     timestamp: new Date().toISOString()
   };

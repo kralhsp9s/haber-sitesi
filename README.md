@@ -72,3 +72,21 @@ Media import tarafında cursor, `next_cursor`, `next_max_id`, `end_cursor`, pagi
 RapidAPI kimlik doğrulamasında `X-RapidAPI-Host` ve `X-RapidAPI-Key` başlıklarının kullanılması gerektiği RapidAPI dokümantasyonunda belirtiliyor. citeturn769200search12
 
 Sourcebin tarafında güncel açık API istemcisi `https://sourceb.in/api/bins` POST akışını kullanıyor. Projede harici Sourcebin npm paketi eklemek yerine Node 18+ yerleşik `fetch` kullanıldı; böylece mevcut `node >=18` şartı korunuyor. citeturn876112view0turn828364view0
+
+
+## API response uyumluluğu
+
+İçe aktarıcı, GraphQL/XDT biçimindeki şu yapıyı da destekler:
+
+`data.xdt_api__v1__usertags__user_id__feed_connection.edges[].node`
+
+Bu yanıtta medya için `node.pk`, `node.code`, `node.id`, `node.owner.id`, `node.user.id`, `node.display_uri`,
+`node.image_versions2.candidates`, `node.accessibility_caption`, `node.caption.text`,
+`node.like_count`, `node.comment_count`, `node.original_width` ve `node.original_height` gibi alanlar korunur.
+
+Önemli ayrım: `node.id` medya kaydı için kullanılan birleşik bir ID olabilir (ör. `mediaPk_ownerId`).
+Instagram kullanıcı ID'si çözümlemesinde `user.id`, `user.pk` veya `owner.id` önceliklidir; böylece medya ID'sinin
+yanlışlıkla User ID olarak kaydedilmesi engellenir.
+
+GraphQL bağlantısındaki `edges` kayıtları `node` nesnesine dönüştürülür ve `page_info.end_cursor` ile sonraki sayfa
+çekilir. Bu nedenle örnek API çıktısındaki `has_next_page: true` durumu da desteklenir.
