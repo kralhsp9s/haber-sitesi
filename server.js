@@ -592,7 +592,9 @@ function findFirstValueDeep(value, keys = new Set(), depth = 0, seen = new Set()
   return '';
 }
 
-function extractUserId(body, expectedUsername = '') {
+function extractUserId(body, expectedUsername = '', options = {}) {
+  const allowUnverifiedDirect = options.allowUnverifiedDirect === true;
+
   const normalizedExpected = String(expectedUsername || '')
     .trim()
     .replace(/^@/, '')
@@ -680,7 +682,7 @@ function extractUserId(body, expectedUsername = '') {
 
   for (const candidate of directCandidates) {
     if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
-      if (isExpectedUser(candidate)) {
+      if (isExpectedUser(candidate) || allowUnverifiedDirect) {
         const id = getDirectId(candidate);
         if (id) return id;
       }
@@ -698,7 +700,15 @@ function extractUserId(body, expectedUsername = '') {
     body?.results,
     body?.profiles,
     body?.user_results,
-    body?.data?.user_results
+    body?.data?.user_results,
+    body?.data?.data,
+    body?.data?.data?.items,
+    body?.data?.data?.users,
+    body?.data?.data?.results,
+    body?.data?.edges,
+    body?.data?.nodes,
+    body?.nodes,
+    body?.edges
   ];
 
   for (const collection of collections) {
@@ -843,6 +853,9 @@ app.get(
       '/user_by_username',
       '/users/search',
       '/search',
+      '/v2/user/by/username',
+      '/v1/instagram/profile',
+      '/api/v1/instagram/user/{username}',
       '/user/{username}',
       '/users/{username}',
       '/profile/{username}',
@@ -882,7 +895,15 @@ app.get(
             validateStatus: status => status >= 200 && status < 300
           });
 
-          const userId = extractUserId(response.data, username);
+          const directLookup =
+            hasUsernamePlaceholder ||
+            /\/(?:v2\/user\/by\/username|v1\/instagram\/profile|user_info|userinfo|user_by_username|profile)(?:$|\/)/i.test(pathValue);
+
+          const userId = extractUserId(
+            response.data,
+            username,
+            { allowUnverifiedDirect: directLookup }
+          );
 
           if (userId) {
             return res.json({
@@ -915,7 +936,7 @@ app.get(
         'Kullanıcı ID çözümlenemedi. RapidAPI sağlayıcısındaki kullanıcı arama endpointini ve dönen JSON yapısını kontrol edin.',
       details: errors.slice(-12),
       tried: paths,
-      hint: 'RapidAPI marketplace sayfasındaki endpoint adını INSTAGRAM_USER_LOOKUP_PATH ile açıkça ayarlayabilirsiniz.'
+      hint: 'Kullanıcı profili endpointi için /user/{username}, /v2/user/by/username?username=..., /v1/instagram/profile?username=... gibi sağlayıcınızın gerçek yolunu kullanın.'
     });
   }
 );

@@ -62,7 +62,7 @@ Panelde **Bildirim** butonu tarayıcının yerel bildirim iznini ister, Push abo
 Eval alanı sınırlı bir `node:vm` bağlamında çalışır. `require`, `process`, dosya sistemi ve ağ erişimi doğrudan bağlama eklenmez. Bu nedenle tam sunucu yetkili `eval` yerine kontrollü kod çalıştırma yaklaşımı kullanılır.
 
 ### Instagram User ID
-User ID çözümleme artık farklı JSON şemalarındaki `id`, `pk`, `user_id`, `userId` gibi alanları ve `user`, `profile`, `data`, `results`, `users` gibi yaygın kapsayıcıları tarar. Yapılandırılan endpoint başarısız olursa `/search_user`, `/search_users` ve `/user_search` fallback yolları da denenir.
+User ID çözümleme farklı RapidAPI sağlayıcılarının yanıtlarını destekler: doğrudan `{id, username}`, `data.id`, `data.items[].id`, `data.users[].id`, `user.id`, `user.pk` ve benzeri yapılar taranır. Username'i URL'de taşıyan `/user/{username}` gibi endpointler ile `/v2/user/by/username?username=...` ve `/v1/instagram/profile?username=...` biçimleri de otomatik denenir. Arama sonuçlarında ise istenen username ile eşleşme yapılmadan ID kabul edilmez; böylece başka hesabın ID'sinin alınması engellenir.
 
 ### Son 500 içerik
 Media import tarafında cursor, `next_cursor`, `next_max_id`, `end_cursor`, pagination token ve benzeri yaygın sayfalama alanları desteklenir. Aynı kayıt tekrar dönerse dedupe edilir ve 500 benzersiz içerik hedeflenir.
