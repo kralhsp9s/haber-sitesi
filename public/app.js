@@ -1207,7 +1207,7 @@ function renderMedia(type) {
             ? `<img
                 src="${escapeAttr(m.url)}"
                 loading="lazy"
-                alt="Instagram medya"
+                alt="${escapeAttr(m.accessibilityCaption || m.caption || "Instagram medya")}"
               >`
 
             : `<div class="media-no-image">
@@ -1246,6 +1246,16 @@ function renderMedia(type) {
               <i class="fa-solid fa-comment"></i>
               ${m.comments || 0}
             </span>
+
+            ${
+              m.viewCount !== null &&
+              m.viewCount !== undefined
+                ? `<span>
+                    <i class="fa-solid fa-eye"></i>
+                    ${m.viewCount || 0}
+                  </span>`
+                : ''
+            }
 
           </div>
 
