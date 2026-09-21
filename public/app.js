@@ -57,7 +57,45 @@ document.addEventListener('DOMContentLoaded', () => {
   // Install
   document
     .getElementById('btn-install')
-    ?.addEventListener('click', installApp);
+    ?.addEventListener('click', openInstallModal);
+
+  document
+    .getElementById('close-install-modal')
+    ?.addEventListener('click', closeInstallModal);
+
+  document
+    .getElementById('confirm-install')
+    ?.addEventListener('click', confirmInstall);
+
+  // Main menu
+  document
+    .getElementById('btn-open-dashboard')
+    ?.addEventListener('click', () => showMainPage('dashboard'));
+
+  document
+    .getElementById('btn-open-eval')
+    ?.addEventListener('click', () => showMainPage('eval'));
+
+  // Eval
+  document
+    .getElementById('btn-eval-run')
+    ?.addEventListener('click', runEval);
+
+  document
+    .getElementById('btn-eval-sourcebin')
+    ?.addEventListener('click', uploadEvalToSourcebin);
+
+  document
+    .getElementById('btn-eval-txt')
+    ?.addEventListener('click', downloadEvalTxt);
+
+  document
+    .getElementById('btn-eval-copy')
+    ?.addEventListener('click', copyEvalOutput);
+
+  document
+    .getElementById('btn-eval-clear')
+    ?.addEventListener('click', clearEval);
 
   // Theme
   document
@@ -120,6 +158,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('modal-story-path').value =
           data.storyPath || '';
 
+        document.getElementById('modal-sourcebin-url').value =
+          data.sourcebinUrl || 'https://sourceb.in/api';
+
         modal?.classList.remove('hidden');
 
       } catch (error) {
@@ -152,20 +193,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     deferredInstallPrompt = e;
 
-    document
-      .getElementById('btn-install')
-      ?.classList.remove('hidden');
-
   });
 
 
   window.addEventListener('appinstalled', () => {
 
     deferredInstallPrompt = null;
-
-    document
-      .getElementById('btn-install')
-      ?.classList.add('hidden');
 
   });
 
@@ -1360,10 +1393,8 @@ async function updateNotificationButton() {
 
   btn.innerHTML =
     Notification.permission === 'granted'
-
-      ? '<i class="fa-solid fa-bell"></i> Bildirimler Açık'
-
-      : '<i class="fa-regular fa-bell"></i> Bildirimleri Aç';
+      ? '<i class="fa-solid fa-bell"></i><span>Bildirim Açık</span>'
+      : '<i class="fa-regular fa-bell"></i><span>Bildirim</span>';
 
 }
 
@@ -1522,23 +1553,59 @@ async function enableNotifications() {
    INSTALL APP
 ========================================================= */
 
-async function installApp() {
+
+function openInstallModal() {
+  document
+    .getElementById('install-modal')
+    ?.classList.remove('hidden');
+}
+
+function closeInstallModal() {
+  document
+    .getElementById('install-modal')
+    ?.classList.add('hidden');
+}
+
+async function confirmInstall() {
+  closeInstallModal();
 
   if (!deferredInstallPrompt) {
-
-    return alert(
-      'Tarayıcınız otomatik kurulum penceresini desteklemiyor.'
-    );
-
+    return showInstallHelp();
   }
 
+  try {
+    deferredInstallPrompt.prompt();
 
-  deferredInstallPrompt.prompt();
+    const choice =
+      await deferredInstallPrompt.userChoice;
 
-  await deferredInstallPrompt.userChoice;
+    if (choice?.outcome !== 'accepted') {
+      console.log('[PWA] Kurulum iptal edildi.');
+    }
 
-  deferredInstallPrompt = null;
+    deferredInstallPrompt = null;
+  } catch (error) {
+    console.error('[PWA INSTALL]', error);
+    showInstallHelp();
+  }
+}
 
+function showInstallHelp() {
+  const isIOS =
+    /iphone|ipad|ipod/i.test(
+      navigator.userAgent
+    );
+
+  if (isIOS) {
+    alert(
+      'iPhone/iPad: Safari paylaş menüsüne dokunup "Ana Ekrana Ekle" seçeneğini kullanın.'
+    );
+    return;
+  }
+
+  alert(
+    'Tarayıcı otomatik kurulum penceresini desteklemiyorsa tarayıcı menüsünden "Ana ekrana ekle" veya "Uygulamayı yükle" seçeneğini kullanabilirsiniz.'
+  );
 }
 
 
@@ -1575,6 +1642,11 @@ async function saveApiSettings() {
       storyPath:
         document.getElementById(
           'modal-story-path'
+        ).value.trim(),
+
+      sourcebinUrl:
+        document.getElementById(
+          'modal-sourcebin-url'
         ).value.trim()
 
     };
@@ -1637,6 +1709,338 @@ async function saveApiSettings() {
 
 }
 
+
+
+/* =========================================================
+   PAGE NAVIGATION
+========================================================= */
+
+function showMainPage(page) {
+  const dashboard =
+    document.getElementById('dashboard-page');
+  const evalPage =
+    document.getElementById('eval-page');
+
+  const dashboardBtn =
+    document.getElementById('btn-open-dashboard');
+  const evalBtn =
+    document.getElementById('btn-open-eval');
+
+  const showEval = page === 'eval';
+
+  dashboard?.classList.toggle(
+    'hidden',
+    showEval
+  );
+
+  evalPage?.classList.toggle(
+    'hidden',
+    !showEval
+  );
+
+  dashboardBtn?.classList.toggle(
+    'active',
+    !showEval
+  );
+
+  evalBtn?.classList.toggle(
+    'active',
+    showEval
+  );
+}
+
+
+/* =========================================================
+   EVAL
+========================================================= */
+
+function getEvalCode() {
+  return String(
+    document.getElementById('eval-code')?.value || ''
+  );
+}
+
+function setEvalStatus(message, type = 'muted') {
+  const el =
+    document.getElementById('eval-status');
+
+  if (!el) return;
+
+  el.textContent = message;
+  el.className =
+    `eval-status ${
+      type === 'success'
+        ? 'success'
+        : type === 'error'
+          ? 'error'
+          : 'muted'
+    }`;
+}
+
+function setEvalOutput(value) {
+  const output =
+    document.getElementById('eval-output');
+
+  if (output) {
+    output.textContent =
+      String(value ?? '');
+  }
+}
+
+async function runEval() {
+  const code = getEvalCode();
+
+  if (!code.trim()) {
+    return setEvalStatus(
+      'Çalıştırmak için kod yazın.',
+      'error'
+    );
+  }
+
+  const btn =
+    document.getElementById('btn-eval-run');
+
+  const old = btn?.innerHTML;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin"></i> Çalışıyor...';
+  }
+
+  setEvalStatus(
+    'Kod çalıştırılıyor...',
+    'muted'
+  );
+
+  try {
+    const res =
+      await fetch('/api/eval', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({ code })
+      });
+
+    const data =
+      await safeJson(res);
+
+    if (!res.ok) {
+      setEvalOutput(
+        data.error ||
+        data.message ||
+        'Eval hatası.'
+      );
+
+      return setEvalStatus(
+        `Hata • ${data.durationMs || 0} ms`,
+        'error'
+      );
+    }
+
+    setEvalOutput(
+      data.result ||
+      'Kod çalıştı ancak çıktı üretmedi.'
+    );
+
+    setEvalStatus(
+      `Başarılı • ${data.durationMs || 0} ms`,
+      'success'
+    );
+  } catch (error) {
+    console.error('[EVAL]', error);
+
+    setEvalOutput(
+      error.message
+    );
+
+    setEvalStatus(
+      'Sunucuya bağlanılamadı.',
+      'error'
+    );
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = old;
+    }
+  }
+}
+
+async function uploadEvalToSourcebin() {
+  const code = getEvalCode();
+
+  if (!code.trim()) {
+    return setEvalStatus(
+      'Sourcebin için önce kod yazın.',
+      'error'
+    );
+  }
+
+  const btn =
+    document.getElementById(
+      'btn-eval-sourcebin'
+    );
+
+  const box =
+    document.getElementById(
+      'sourcebin-result'
+    );
+
+  const old = btn?.innerHTML;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML =
+      '<i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...';
+  }
+
+  box?.classList.add('hidden');
+
+  try {
+    const res =
+      await fetch('/api/sourcebin', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({
+          code,
+          title: 'InstaTracker Eval'
+        })
+      });
+
+    const data =
+      await safeJson(res);
+
+    if (!res.ok) {
+      throw new Error(
+        data.error ||
+        data.message ||
+        'Sourcebin yükleme başarısız.'
+      );
+    }
+
+    if (box) {
+      box.innerHTML = `
+        <div class="sourcebin-success">
+          <i class="fa-solid fa-circle-check"></i>
+          <div>
+            <strong>Sourcebin hazır.</strong>
+            <a
+              href="${escapeAttr(data.url)}"
+              target="_blank"
+              rel="noopener noreferrer"
+            >${escapeHtml(data.url)}</a>
+          </div>
+        </div>
+      `;
+      box.classList.remove('hidden');
+    }
+
+    setEvalStatus(
+      'Kod Sourcebin’e gönderildi.',
+      'success'
+    );
+  } catch (error) {
+    setEvalStatus(
+      error.message,
+      'error'
+    );
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = old;
+    }
+  }
+}
+
+function downloadEvalTxt() {
+  const code = getEvalCode();
+
+  if (!code.trim()) {
+    return setEvalStatus(
+      'TXT indirmek için önce kod yazın.',
+      'error'
+    );
+  }
+
+  const blob =
+    new Blob(
+      [code],
+      { type: 'text/plain;charset=utf-8' }
+    );
+
+  const url =
+    URL.createObjectURL(blob);
+
+  const a =
+    document.createElement('a');
+
+  a.href = url;
+  a.download =
+    `instatracker-eval-${new Date()
+      .toISOString()
+      .slice(0, 19)
+      .replace(/[:T]/g, '-')}.txt`;
+
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  URL.revokeObjectURL(url);
+
+  setEvalStatus(
+    'TXT dosyası hazırlandı.',
+    'success'
+  );
+}
+
+async function copyEvalOutput() {
+  const text =
+    document.getElementById(
+      'eval-output'
+    )?.textContent || '';
+
+  if (!text.trim()) return;
+
+  try {
+    await navigator.clipboard.writeText(text);
+
+    setEvalStatus(
+      'Sonuç panoya kopyalandı.',
+      'success'
+    );
+  } catch (_) {
+    alert(
+      'Sonuç kopyalanamadı. Metni manuel olarak seçebilirsiniz.'
+    );
+  }
+}
+
+function clearEval() {
+  const code =
+    document.getElementById('eval-code');
+
+  if (code) code.value = '';
+
+  setEvalOutput(
+    'Çıktı burada görünecek...'
+  );
+
+  setEvalStatus(
+    'Eval alanı temizlendi.',
+    'muted'
+  );
+
+  document
+    .getElementById('sourcebin-result')
+    ?.classList.add('hidden');
+}
 
 /* =========================================================
    THEME

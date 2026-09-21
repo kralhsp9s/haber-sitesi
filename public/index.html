@@ -151,59 +151,80 @@
       </div>
 
 
-      <!-- NAV BUTTONS -->
-      <div class="flex items-center space-x-3">
+      <!-- NAV / TOOLS -->
+      <div class="header-tools">
+
+        <nav class="dashboard-nav" aria-label="Ana menü">
+
+          <button
+            id="btn-open-dashboard"
+            class="nav-btn active"
+            type="button"
+          >
+            <i class="fa-solid fa-gauge-high"></i>
+            <span>Panel</span>
+          </button>
+
+          <button
+            id="btn-open-eval"
+            class="nav-btn"
+            type="button"
+          >
+            <i class="fa-solid fa-terminal"></i>
+            <span>Tam Eval</span>
+          </button>
+
+        </nav>
 
         <!-- SYNC -->
         <button
           id="btn-sync"
-          title="Günde 8 Limitli Taramayı Şimdi Çalıştır"
-          class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2"
+          title="Instagram arşivini şimdi güncelle"
+          class="tool-btn success"
         >
           <i class="fa-solid fa-rotate"></i>
-          <span>Şimdi Senkronize Et</span>
+          <span>Sync</span>
         </button>
-
 
         <!-- NOTIFICATIONS -->
         <button
           id="btn-notifications"
-          class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg text-xs"
-          title="Tarayıcı bildirimleri"
+          class="tool-btn"
+          title="Bildirimleri aç / test bildirimi gönder"
+          type="button"
         >
           <i class="fa-regular fa-bell"></i>
-          Bildirimleri Aç
+          <span>Bildirim</span>
         </button>
-
 
         <!-- INSTALL -->
         <button
           id="btn-install"
-          class="hidden bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-lg text-xs"
+          class="tool-btn install"
+          type="button"
           title="Ana ekrana ekle"
         >
           <i class="fa-solid fa-mobile-screen-button"></i>
-          Ana Ekrana Ekle
+          <span>Ana Ekrana Ekle</span>
         </button>
-
 
         <!-- API KEY -->
         <button
           id="btn-api-key"
-          class="bg-slate-700 hover:bg-slate-600 text-slate-200 p-2.5 rounded-lg text-sm"
-          title="API Key Ayarları"
+          class="tool-btn icon-only"
+          type="button"
+          title="API ayarları"
         >
           <i class="fa-solid fa-key"></i>
         </button>
 
-
         <!-- THEME -->
         <div class="relative">
-
           <button
             id="btn-theme"
-            class="glass-btn"
+            class="tool-btn"
             title="Tema"
+            type="button"
           >
             <i class="fa-solid fa-circle-half-stroke"></i>
             <span id="theme-label">Otomatik</span>
@@ -213,32 +234,27 @@
             id="theme-menu"
             class="theme-menu hidden"
           >
-
             <button data-theme="auto">
               <i class="fa-solid fa-circle-half-stroke"></i>
               Otomatik
             </button>
-
             <button data-theme="light">
               <i class="fa-solid fa-sun"></i>
               Aydınlık
             </button>
-
             <button data-theme="dark">
               <i class="fa-solid fa-moon"></i>
               Karanlık
             </button>
-
           </div>
-
         </div>
-
 
         <!-- LOGOUT -->
         <button
           id="btn-logout"
-          class="bg-rose-600 hover:bg-rose-500 text-white p-2.5 rounded-lg text-sm"
+          class="tool-btn danger icon-only"
           title="Çıkış Yap"
+          type="button"
         >
           <i class="fa-solid fa-right-from-bracket"></i>
         </button>
@@ -252,7 +268,8 @@
          CONTENT
     ======================================================== -->
     <main
-      class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6"
+      id="dashboard-page"
+      class="dashboard-page flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6"
     >
 
 
@@ -463,6 +480,132 @@
 
     </main>
 
+    <!-- =====================================================
+         TAM EVAL SAYFASI
+    ====================================================== -->
+    <section
+      id="eval-page"
+      class="eval-page hidden flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6"
+      aria-label="Tam Eval"
+    >
+      <div class="eval-shell">
+
+        <div class="eval-header">
+          <div>
+            <div class="eyebrow">
+              <i class="fa-solid fa-terminal"></i>
+              GELİŞMİŞ KOD ALANI
+            </div>
+            <h2 class="eval-title">Tam Eval</h2>
+            <p class="eval-description">
+              JavaScript kodunu çalıştır, çıktıyı aşağıda gör; aynı kodu
+              Sourcebin'e gönderebilir veya TXT olarak indirebilirsin.
+            </p>
+          </div>
+
+          <button
+            id="btn-eval-clear"
+            class="secondary-btn"
+            type="button"
+          >
+            <i class="fa-solid fa-eraser"></i>
+            Temizle
+          </button>
+        </div>
+
+        <div class="eval-grid">
+
+          <div class="eval-card">
+            <div class="eval-card-title">
+              <span>
+                <i class="fa-solid fa-code text-rose-400"></i>
+                Kod
+              </span>
+              <span class="eval-badge">JS</span>
+            </div>
+
+            <textarea
+              id="eval-code"
+              class="eval-editor"
+              spellcheck="false"
+              autocomplete="off"
+              placeholder="// JavaScript kodunu buraya yaz...
+console.log('Merhaba dünya!');
+return 2 + 2;"
+            ></textarea>
+
+            <div class="eval-actions">
+              <button
+                id="btn-eval-run"
+                class="primary-btn eval-run"
+                type="button"
+              >
+                <i class="fa-solid fa-play"></i>
+                Çalıştır
+              </button>
+
+              <button
+                id="btn-eval-sourcebin"
+                class="secondary-btn sourcebin-btn"
+                type="button"
+              >
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                Sourcebin
+              </button>
+
+              <button
+                id="btn-eval-txt"
+                class="secondary-btn"
+                type="button"
+              >
+                <i class="fa-solid fa-file-arrow-down"></i>
+                TXT
+              </button>
+            </div>
+
+            <div id="sourcebin-result" class="sourcebin-result hidden"></div>
+          </div>
+
+          <div class="eval-card result-card">
+            <div class="eval-card-title">
+              <span>
+                <i class="fa-solid fa-square-terminal text-emerald-400"></i>
+                Sonuç
+              </span>
+              <button
+                id="btn-eval-copy"
+                class="icon-btn"
+                type="button"
+                title="Sonucu kopyala"
+              >
+                <i class="fa-regular fa-copy"></i>
+              </button>
+            </div>
+
+            <div
+              id="eval-status"
+              class="eval-status muted"
+            >
+              Henüz kod çalıştırılmadı.
+            </div>
+
+            <pre
+              id="eval-output"
+              class="eval-output"
+            >Çıktı burada görünecek...</pre>
+          </div>
+
+        </div>
+
+        <div class="eval-note">
+          <i class="fa-solid fa-shield-halved"></i>
+          Eval alanı sınırlı bir Node.js VM bağlamında çalışır; dosya sistemi,
+          <code>require</code>, ortam değişkenleri ve ağ erişimi doğrudan açılmaz.
+        </div>
+
+      </div>
+    </section>
+
   </div>
 
 
@@ -587,6 +730,26 @@
         >
 
       </div>
+      
+      <!-- SOURCEBIN -->
+      <div>
+
+        <label
+          for="modal-sourcebin-url"
+          class="block text-xs text-slate-400 mb-1"
+        >
+          Sourcebin API URL
+        </label>
+
+        <input
+          type="url"
+          id="modal-sourcebin-url"
+          placeholder="https://sourceb.in/api"
+          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white"
+        >
+
+      </div>
+
 
 
       <!-- MODAL BUTTONS -->
@@ -614,6 +777,38 @@
 
   </div>
 
+
+
+  <!-- =========================================================
+       ANA EKRANA EKLE MODAL
+  ========================================================== -->
+  <div
+    id="install-modal"
+    class="modal-layer hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="install-title"
+  >
+    <div class="app-modal-card">
+      <div class="app-modal-icon">
+        <i class="fa-solid fa-mobile-screen-button"></i>
+      </div>
+      <h3 id="install-title">Ana ekrana eklemek ister misin?</h3>
+      <p>
+        Bu siteyi uygulama gibi kullanmak için ana ekranına ekleyebilirsin.
+        Destekleyen tarayıcılarda kurulum penceresi otomatik açılır.
+      </p>
+      <div class="app-modal-actions">
+        <button id="close-install-modal" class="secondary-btn" type="button">
+          Daha Sonra
+        </button>
+        <button id="confirm-install" class="primary-btn" type="button">
+          <i class="fa-solid fa-download"></i>
+          Ana Ekrana Ekle
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- =========================================================
        JAVASCRIPT
