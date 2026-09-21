@@ -592,40 +592,70 @@ function findFirstValueDeep(value, keys = new Set(), depth = 0, seen = new Set()
   return '';
 }
 
-function extractUserId(body) {
+function extractUserId(body, expectedUsername = '') {
   const primaryKeys = new Set([
-    'user_id',
-    'userId',
-    'id',
-    'pk',
-    'pk_id',
-    'instagram_user_id'
+    'user_id', 'userId', 'id', 'pk', 'pk_id', 'instagram_user_id'
   ]);
 
-  // Önce "user" benzeri nesnelerin içinden ID arıyoruz.
+  const usernameKeys = new Set(['username', 'user_name', 'handle']);
+  const normalizedExpected = String(expectedUsername || '').trim().replace(/^@/, '').toLowerCase();
+
+  // Önce kullanıcı adına tam eşleşen nesneyi bul. Arama endpointleri çoğu zaman
+  // {data:{users:[...]}} veya {users:[...]} döndürür; ilk sonucu körlemesine
+  // almak yanlış hesabın ID'sini kaydetmemize neden olabilir.
+  function findMatchingUser(value, depth = 0, seen = new Set()) {
+    if (!value || typeof value !== 'object' || depth > 9) return '';
+    if (seen.has(value)) return '';
+    seen.add(value);
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const found = findMatchingUser(item, depth + 1, seen);
+        if (found) return found;
+      }
+      return '';
+    }
+
+    const candidateUsername = findFirstValueDeep(value, usernameKeys, depth, new Set());
+    if (
+      normalizedExpected &&
+      candidateUsername &&
+      candidateUsername.replace(/^@/, '').toLowerCase() === normalizedExpected
+    ) {
+      return findFirstValueDeep(value, primaryKeys, depth, new Set());
+    }
+
+    for (const child of Object.values(value)) {
+      const found = findMatchingUser(child, depth + 1, seen);
+      if (found) return found;
+    }
+    return '';
+  }
+
+  const exact = findMatchingUser(body);
+  if (exact) return exact;
+
   const preferredContainers = [
     body?.user,
     body?.profile,
     body?.result,
     body?.data?.user,
     body?.data?.profile,
-    body?.data,
-    body?.users?.[0],
-    body?.results?.[0]
+    body?.data?.users,
+    body?.data?.results,
+    body?.users,
+    body?.results,
+    body?.items,
+    body?.data?.items,
+    body?.data
   ];
 
   for (const container of preferredContainers) {
-    const found = findFirstValueDeep(
-      container,
-      primaryKeys
-    );
+    const found = findFirstValueDeep(container, primaryKeys);
     if (found) return found;
   }
 
-  return findFirstValueDeep(
-    body,
-    primaryKeys
-  );
+  return findFirstValueDeep(body, primaryKeys);
 }
 
 function extractUsername(body, fallback = '') {
@@ -678,11 +708,21 @@ app.get(
 
     // user_tagged profil araması için uygun değildir; kendi gönderileri/tagged
     // ayrımını netleştirmek için otomatik olarak kullanıcı arama endpoint'ine döneriz.
+    // instagram-scraper2'nin herkese açık olarak indekslenmiş dokümanlarında
+    // tek bir username->id endpoint sözleşmesi bulunmadığı için, panelde
+    // ayarlanan yolu ilk tercih olarak kullanıp yaygın kullanıcı/profil yollarını
+    // fallback olarak deniyoruz.
     const paths = [
       configuredPath,
-      ...(configuredPath === '/search_user'
-        ? []
-        : ['/search_user', '/search_users', '/user_search'])
+      '/search_user',
+      '/search_users',
+      '/user_search',
+      '/user_info',
+      '/user_info_by_username',
+      '/userinfo',
+      '/user_by_username',
+      '/users/search',
+      '/search'
     ].filter((p, i, arr) => p && arr.indexOf(p) === i);
 
     const queryVariants = [
@@ -690,7 +730,9 @@ app.get(
       { user_name: username },
       { query: username },
       { q: username },
-      { search: username }
+      { search: username },
+      { keyword: username },
+      { name: username }
     ];
 
     const errors = [];
@@ -711,7 +753,7 @@ app.get(
             }
           );
 
-          const userId = extractUserId(response.data);
+          const userId = extractUserId(response.data, username);
 
           if (userId) {
             return res.json({
@@ -745,7 +787,9 @@ app.get(
     return res.status(404).json({
       error:
         'Kullanıcı ID çözümlenemedi. RapidAPI sağlayıcısındaki kullanıcı arama endpointini ve dönen JSON yapısını kontrol edin.',
-      details: errors.slice(-6)
+      details: errors.slice(-12),
+      tried: paths,
+      hint: 'RapidAPI marketplace sayfasındaki endpoint adını INSTAGRAM_USER_LOOKUP_PATH ile açıkça ayarlayabilirsiniz.'
     });
   }
 );
