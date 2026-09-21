@@ -509,3 +509,66 @@ html.light .eval-editor{
     animation-iteration-count:1 !important;
   }
 }
+
+
+/* =========================================================
+   THEME HARMONY OVERRIDES
+========================================================= */
+:root{
+  --brand-a:#e1306c;
+  --brand-b:#833ab4;
+  --brand-c:#fd1d1d;
+  --focus:rgba(225,48,108,.42);
+  --input-bg:rgba(255,255,255,.78);
+  --header-bg:rgba(255,255,255,.76);
+  --login-bg:#f7f8fc;
+}
+html.dark{
+  --input-bg:rgba(15,23,42,.78);
+  --header-bg:rgba(15,23,42,.78);
+  --login-bg:#080b13;
+}
+
+body{background-image:
+  radial-gradient(circle at 8% 0%,rgba(225,48,108,.12),transparent 28%),
+  radial-gradient(circle at 92% 4%,rgba(131,58,180,.12),transparent 30%),
+  radial-gradient(circle at 50% 100%,rgba(253,29,29,.06),transparent 35%);
+}
+
+html.light .bg-slate-950,
+html.light .bg-slate-900,
+html.light .bg-slate-800,
+html.light .bg-slate-800\/80{background-color:var(--surface2)!important;background-image:none!important}
+html.light .border-slate-800,
+html.light .border-slate-700{border-color:var(--border)!important}
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .text-slate-300{color:var(--text)!important}
+html.light .text-slate-400,
+html.light .text-slate-500{color:var(--muted)!important}
+html.light input,
+html.light textarea,
+html.light select{background:var(--input-bg)!important;color:var(--text)!important;border-color:var(--border)!important}
+html.light input::placeholder,
+html.light textarea::placeholder{color:var(--muted)!important}
+html.dark input,
+html.dark textarea,
+html.dark select{background:var(--input-bg);color:var(--text);border-color:var(--border)}
+
+#login-screen{background:var(--login-bg)!important}
+#login-screen > div{background:var(--surface)!important;border-color:var(--border)!important;box-shadow:var(--shadow)!important}
+header{background:var(--header-bg)!important;border-color:var(--border)!important}
+
+/* Keep action colors consistent with the brand palette. */
+.bg-rose-600{background-color:var(--brand-a)!important}
+.hover\\:bg-rose-500:hover{background-color:#c72b60!important}
+.text-rose-500,.text-rose-400{color:var(--brand-a)!important}
+
+/* Inputs and controls should use one visual language in both themes. */
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline-color:var(--focus)!important}
+.modal-layer{background:rgba(7,10,18,.62)}
+html.light .modal-layer{background:rgba(15,23,42,.30)}
+
+@media(max-width:640px){
+  #login-screen > div{padding:22px!important}
+}
