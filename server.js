@@ -711,6 +711,27 @@ function extractUserId(body, expectedUsername = '', options = {}) {
     }
   }
 
+  // Some providers use { success, data: { id, ... } } or
+  // { result: { pk, ... } } without exposing username in that same object.
+  // For an explicitly trusted lookup request, accept the direct numeric ID.
+  if (allowUnverifiedDirect) {
+    const profileEnvelopes = [
+      body,
+      body?.data,
+      body?.result,
+      body?.data?.data,
+      body?.result?.data,
+      body?.user,
+      body?.profile
+    ];
+
+    for (const envelope of profileEnvelopes) {
+      if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) continue;
+      const id = getDirectId(envelope);
+      if (id) return id;
+    }
+  }
+
   // Search endpoints commonly return data/items/users/results arrays.
   const collections = [
     body?.data,
@@ -929,9 +950,15 @@ app.get(
             validateStatus: status => status >= 200 && status < 300
           });
 
+          // A number of RapidAPI providers return the profile object directly
+          // from their search endpoint, e.g. { id, username }, { pk, username },
+          // or even { id, full_name } when the query itself is the username.
+          // Do not require the username to be repeated inside the returned object
+          // for an explicitly configured user-lookup request.
           const directLookup =
             hasUsernamePlaceholder ||
-            /\/(?:v2\/user\/by\/username|v1\/instagram\/profile|user_info|userinfo|user_by_username|profile)(?:$|\/)/i.test(pathValue);
+            pathValue === configuredPath ||
+            /\/(?:search_user|search_users|user_search|user_info|user_info_by_username|userinfo|user_by_username|users\/search|v2\/user\/by\/username|v1\/instagram\/profile|api\/v1\/instagram\/user|user|users|profile)(?:$|\/)/i.test(pathValue);
 
           const userId = extractUserId(
             response.data,
