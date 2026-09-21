@@ -598,79 +598,125 @@ function extractUserId(body, expectedUsername = '') {
     .replace(/^@/, '')
     .toLowerCase();
 
-  const idKeys = [
-    'user_id',
-    'userId',
-    'instagram_user_id',
-    'pk',
-    'pk_id',
-    'id'
-  ];
-
-  const usernameKeys = ['username', 'user_name', 'handle'];
-
   const asId = value => {
     if (value === undefined || value === null) return '';
     const text = String(value).trim();
+    if (!text) return '';
 
-    // Media IDs in this API can look like "mediaPk_ownerId".
-    // They must never be returned as the Instagram user ID.
-    if (/^\d+_\d+$/.test(text)) {
-      return text.split('_').pop();
-    }
-
-    // A normal numeric Instagram user ID.
+    // Instagram media IDs can be returned as "mediaPk_ownerId".
+    if (/^\d+_\d+$/.test(text)) return text.split('_').pop();
     if (/^\d+$/.test(text)) return text;
+    return '';
+  };
 
+  const getUsername = value => {
+    if (!value || typeof value !== 'object') return '';
+    for (const key of ['username', 'user_name', 'handle', 'userName']) {
+      const candidate = String(value[key] ?? '').trim();
+      if (candidate) return candidate.replace(/^@/, '');
+    }
     return '';
   };
 
   const getDirectId = value => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
 
-    // The supplied API response has:
-    // node.owner.id
-    // node.user.id / node.user.pk
-    // These are more authoritative than node.id (which is a media ID).
+    // Profile/user containers have priority over a bare `id`, because a media
+    // object may also contain its own (composite) `id`.
     for (const container of [
       value.user,
       value.profile,
       value.owner,
       value.author,
-      value.account
+      value.account,
+      value.user_info,
+      value.userInfo
     ]) {
       if (!container || typeof container !== 'object') continue;
-
-      for (const key of ['id', 'pk', 'user_id', 'userId', 'pk_id']) {
+      for (const key of ['id', 'pk', 'user_id', 'userId', 'instagram_user_id', 'pk_id']) {
         const id = asId(container[key]);
         if (id) return id;
       }
     }
 
-    for (const key of ['user_id', 'userId', 'instagram_user_id', 'pk_id']) {
+    for (const key of ['user_id', 'userId', 'instagram_user_id', 'pk_id', 'uid']) {
       const id = asId(value[key]);
       if (id) return id;
     }
 
-    // Only accept a bare "id" if it is not a media composite ID.
-    return asId(value.id);
+    return asId(value.id) || asId(value.pk);
   };
 
-  const getUsername = value => {
-    if (!value || typeof value !== 'object') return '';
-    for (const key of usernameKeys) {
-      const candidate = String(value[key] ?? '').trim();
-      if (candidate) return candidate;
+  const isExpectedUser = value => {
+    if (!normalizedExpected) return true;
+    const usernames = [
+      getUsername(value),
+      getUsername(value?.user),
+      getUsername(value?.profile),
+      getUsername(value?.owner),
+      getUsername(value?.author),
+      getUsername(value?.account),
+      getUsername(value?.user_info),
+      getUsername(value?.userInfo)
+    ].filter(Boolean);
+
+    return usernames.some(name =>
+      name.toLowerCase() === normalizedExpected
+    );
+  };
+
+  // First inspect the common direct profile response shapes. This is important
+  // for providers that return {data:{id,username}} instead of a search array.
+  const directCandidates = [
+    body?.user,
+    body?.profile,
+    body?.data?.user,
+    body?.data?.profile,
+    body?.result?.user,
+    body?.result?.profile,
+    body?.data,
+    body?.result
+  ];
+
+  for (const candidate of directCandidates) {
+    if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+      if (isExpectedUser(candidate)) {
+        const id = getDirectId(candidate);
+        if (id) return id;
+      }
     }
-    return '';
-  };
+  }
 
+  // Search endpoints commonly return data/items/users/results arrays.
+  const collections = [
+    body?.data,
+    body?.data?.items,
+    body?.data?.users,
+    body?.data?.results,
+    body?.users,
+    body?.items,
+    body?.results,
+    body?.profiles,
+    body?.user_results,
+    body?.data?.user_results
+  ];
+
+  for (const collection of collections) {
+    if (!Array.isArray(collection)) continue;
+    for (const item of collection) {
+      if (!item || typeof item !== 'object') continue;
+      if (!isExpectedUser(item)) continue;
+      const id = getDirectId(item);
+      if (id) return id;
+    }
+  }
+
+  // Some providers wrap the result one or more levels deeper. Keep a bounded
+  // recursive fallback, but only accept an ID when it belongs to the requested
+  // username. This prevents media IDs from being mistaken for user IDs.
   const seen = new Set();
-
   function findMatching(value, depth = 0) {
-    if (!value || typeof value !== 'object' || depth > 12 || seen.has(value)) {
-      return '';
-    }
+    if (!value || typeof value !== 'object' || depth > 10 || seen.has(value)) return '';
     seen.add(value);
 
     if (Array.isArray(value)) {
@@ -681,100 +727,20 @@ function extractUserId(body, expectedUsername = '') {
       return '';
     }
 
-    const directUsername = getUsername(value);
-    const nestedUsername =
-      getUsername(value.user) ||
-      getUsername(value.profile) ||
-      getUsername(value.owner) ||
-      getUsername(value.author);
-
-    const candidateUsername =
-      directUsername || nestedUsername;
-
-    if (
-      normalizedExpected &&
-      candidateUsername &&
-      candidateUsername.replace(/^@/, '').toLowerCase() === normalizedExpected
-    ) {
-      return getDirectId(value) || getDirectId(value.user) || getDirectId(value.profile);
-    }
-
-    // A common shape is { user: { username, pk } }.
-    for (const child of [
-      value.user,
-      value.profile,
-      value.owner,
-      value.author,
-      value.account
-    ]) {
-      const found = findMatching(child, depth + 1);
-      if (found) return found;
+    if (isExpectedUser(value)) {
+      const id = getDirectId(value);
+      if (id) return id;
     }
 
     for (const [key, child] of Object.entries(value)) {
-      if (
-        key === 'image_versions2' ||
-        key === 'carousel_media' ||
-        key === 'caption'
-      ) continue;
-
+      if (['image_versions2', 'carousel_media', 'caption', 'thumbnail_resources'].includes(key)) continue;
       const found = findMatching(child, depth + 1);
       if (found) return found;
     }
-
     return '';
   }
 
-  const exact = findMatching(body);
-  if (exact) return exact;
-
-  // If the response contains an Instagram connection, inspect its edges.
-  // Example:
-  // data.xdt_api__v1__usertags__user_id__feed_connection.edges[].node.user.id
-  const connections = [
-    body?.data?.xdt_api__v1__usertags__user_id__feed_connection,
-    body?.xdt_api__v1__usertags__user_id__feed_connection,
-    body?.data?.xdt_api__v1__feed_connection,
-    body?.data?.feed_connection
-  ];
-
-  for (const connection of connections) {
-    const edges = Array.isArray(connection?.edges)
-      ? connection.edges
-      : [];
-
-    for (const edge of edges) {
-      const node = edge?.node || edge;
-      const nodeUsername =
-        getUsername(node?.user) ||
-        getUsername(node?.owner) ||
-        getUsername(node);
-
-      if (
-        normalizedExpected &&
-        nodeUsername &&
-        nodeUsername.replace(/^@/, '').toLowerCase() === normalizedExpected
-      ) {
-        const id = getDirectId(node);
-        if (id) return id;
-      }
-    }
-  }
-
-  // Finally, prefer explicit user/profile containers over arbitrary "id" fields.
-  for (const container of [
-    body?.user,
-    body?.profile,
-    body?.data?.user,
-    body?.data?.profile,
-    body?.result?.user,
-    body?.result?.profile
-  ]) {
-    const id = getDirectId(container);
-    if (id) return id;
-  }
-
-  return '';
+  return findMatching(body);
 }
 
 function extractUsername(body, fallback = '') {
@@ -794,6 +760,41 @@ function extractUsername(body, fallback = '') {
   );
 }
 
+
+function buildRapidApiUrl(host, pathValue, username) {
+  const raw = String(pathValue || '').trim();
+  const encoded = encodeURIComponent(username);
+  const resolved = raw
+    .replace(/\{(?:username|user_name|user|name)\}/ig, encoded)
+    .replace(/:username|:user|:user_name/ig, encoded);
+
+  if (/^https?:\/\//i.test(resolved)) return resolved;
+  return `https://${host}${resolved.startsWith('/') ? resolved : `/${resolved}`}`;
+}
+
+function extractUsersFromResponse(body) {
+  const candidates = [
+    body?.users, body?.data?.users, body?.data?.items, body?.data?.results,
+    body?.items, body?.results, body?.profiles, body?.data?.profiles,
+    body?.user_results, body?.data?.user_results, body?.data?.users?.items
+  ];
+  return candidates.find(Array.isArray) || [];
+}
+
+function responseLooksLikeUserLookup(body, username) {
+  const wanted = String(username || '').trim().replace(/^@/, '').toLowerCase();
+  if (!wanted) return false;
+  const candidates = [
+    body?.user, body?.profile, body?.data?.user, body?.data?.profile,
+    body?.result?.user, body?.result?.profile, body?.data, body?.result,
+    ...extractUsersFromResponse(body)
+  ];
+  return candidates.some(value => {
+    if (!value || typeof value !== 'object') return false;
+    const name = String(value.username || value.user_name || value.handle || '').replace(/^@/, '').toLowerCase();
+    return name === wanted;
+  });
+}
 
 app.get(
   '/api/instagram/resolve-user',
@@ -841,12 +842,18 @@ app.get(
       '/userinfo',
       '/user_by_username',
       '/users/search',
-      '/search'
+      '/search',
+      '/user/{username}',
+      '/users/{username}',
+      '/profile/{username}',
+      '/user_info/{username}'
     ].filter((p, i, arr) => p && arr.indexOf(p) === i);
 
     const queryVariants = [
       { username },
       { user_name: username },
+      { user: username },
+      { handle: username },
       { query: username },
       { q: username },
       { search: username },
@@ -857,48 +864,48 @@ app.get(
     const errors = [];
 
     for (const pathValue of paths) {
-      for (const params of queryVariants) {
+      const hasUsernamePlaceholder = /\{(?:username|user_name|user|name)\}|:username|:user|:user_name/i.test(pathValue);
+      const requests = hasUsernamePlaceholder ? [{}] : queryVariants;
+
+      for (const params of requests) {
         try {
-          const response = await axios.get(
-            `https://${host}${pathValue.startsWith('/') ? pathValue : `/${pathValue}`}`,
-            {
-              params,
-              headers: {
-                'x-rapidapi-key': db.settings.apiKey,
-                'x-rapidapi-host': host,
-                Accept: 'application/json'
-              },
-              timeout: 30000
-            }
-          );
+          const url = buildRapidApiUrl(host, pathValue, username);
+          const response = await axios.get(url, {
+            params,
+            headers: {
+              'x-rapidapi-key': db.settings.apiKey,
+              'x-rapidapi-host': host,
+              Accept: 'application/json',
+              'User-Agent': 'InstaTracker/1.2'
+            },
+            timeout: 30000,
+            validateStatus: status => status >= 200 && status < 300
+          });
 
           const userId = extractUserId(response.data, username);
 
           if (userId) {
             return res.json({
               success: true,
-              username:
-                extractUsername(
-                  response.data,
-                  username
-                ).replace(/^@/, ''),
-              userId
+              username: extractUsername(response.data, username).replace(/^@/, ''),
+              userId,
+              source: pathValue
             });
           }
 
-          errors.push(
-            `${pathValue} (${JSON.stringify(params)}): ID bulunamadı`
-          );
+          const shape = Array.isArray(response.data)
+            ? 'array'
+            : (response.data && typeof response.data === 'object' ? Object.keys(response.data).slice(0, 8).join(',') : typeof response.data);
+
+          errors.push(`${pathValue} (${JSON.stringify(params)}): ID bulunamadı [${shape}]`);
         } catch (error) {
           const detail =
             error.response?.data?.message ||
             error.response?.data?.error ||
             error.response?.data?.detail ||
+            error.response?.statusText ||
             error.message;
-
-          errors.push(
-            `${pathValue}: ${detail}`
-          );
+          errors.push(`${pathValue}: ${detail}`);
         }
       }
     }
