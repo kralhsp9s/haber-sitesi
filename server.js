@@ -6,8 +6,39 @@ const axios = require('axios');
 const path = require('path');
 const webpush = require('web-push');
 const vm = require('vm');
+const InstagramWebApi = require('instagram-web-api');
 
 const { readDB, writeDB } = require('./database');
+
+// Günlük RapidAPI kotası: UTC takvim gününde en fazla 8 istek.
+// Sayım DB'de tutulur ve sunucu yeniden başlatıldığında sıfırlanmaz.
+const DAILY_API_LIMIT = 8;
+function getDailyApiUsage(db = readDB()) {
+  const day = new Date().toISOString().slice(0, 10);
+  if (!db.apiUsage || db.apiUsage.day !== day) {
+    db.apiUsage = { day, count: 0, history: [] };
+    writeDB(db);
+  }
+  return db.apiUsage;
+}
+axios.interceptors.request.use(config => {
+  const host = String(config.headers?.['x-rapidapi-host'] || config.headers?.get?.('x-rapidapi-host') || '');
+  const key = config.headers?.['x-rapidapi-key'] || config.headers?.get?.('x-rapidapi-key');
+  if (!host || !key) return config;
+  const db = readDB();
+  const usage = getDailyApiUsage(db);
+  if (usage.count >= DAILY_API_LIMIT) {
+    const err = new Error('Günlük API kullanım sınırı doldu (8/8). Yarın tekrar deneyin.');
+    err.code = 'DAILY_API_LIMIT';
+    return Promise.reject(err);
+  }
+  usage.count += 1;
+  usage.history = (usage.history || []).concat([{ at: new Date().toISOString(), host }]).slice(-100);
+  db.apiUsage = usage;
+  writeDB(db);
+  return config;
+});
+
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -878,9 +909,28 @@ app.get(
       });
     }
 
+    // Önce ücretsiz instagram-web-api modülüyle herkese açık profili çözmeyi dene.
+    // Bu adım RapidAPI günlük 8 istek kotasını tüketmez. Paket eski olduğundan
+    // başarısız olursa mevcut RapidAPI yedeğine geçilir.
+    try {
+      const instagram = new InstagramWebApi({});
+      const profile = await instagram.getUserByUsername({ username });
+      const moduleUserId = extractUserId(profile, username, { allowUnverifiedDirect: true });
+      if (moduleUserId) {
+        return res.json({
+          success: true,
+          username: extractUsername(profile, username).replace(/^@/, ''),
+          userId: moduleUserId,
+          source: 'instagram-web-api (ücretsiz modül)'
+        });
+      }
+    } catch (moduleError) {
+      console.warn('[USERNAME LOOKUP] instagram-web-api başarısız; RapidAPI deneniyor:', moduleError.message);
+    }
+
     if (!db.settings.apiKey) {
-      return res.status(400).json({
-        error: 'Önce RapidAPI anahtarını kaydedin.'
+      return res.status(502).json({
+        error: 'Ücretsiz modül bu kullanıcı adını çözemedi. RapidAPI yedeğini kullanmak için API anahtarını ayarlayın.'
       });
     }
 
@@ -2204,7 +2254,7 @@ app.post(
 ========================================================= */
 
 cron.schedule(
-  '0 */3 * * *',
+  '0 4 * * *',
   () => {
     console.log(
       '[CRON] Otomatik Instagram kontrolü başladı.'

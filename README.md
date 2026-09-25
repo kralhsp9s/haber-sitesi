@@ -90,3 +90,5 @@ yanlışlıkla User ID olarak kaydedilmesi engellenir.
 
 GraphQL bağlantısındaki `edges` kayıtları `node` nesnesine dönüştürülür ve `page_info.end_cursor` ile sonraki sayfa
 çekilir. Bu nedenle örnek API çıktısındaki `has_next_page: true` durumu da desteklenir.
+
+\n## Günlük API kotası\n\nRapidAPI istekleri UTC gününe göre DB'de sayılır ve günlük 8 istekle sınırlandırılır. Oturum açtıktan sonra `GET /api/usage` endpoint'i kullanılan/kalan kotayı verir. Otomatik kontrol zamanlaması günde bire düşürüldü.\n
