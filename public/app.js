@@ -805,7 +805,8 @@ async function syncAll() {
         data.message ||
         'Senkronizasyon başarısız.'
       );
-
+    } else {
+      alert(data.message || 'Manuel yenileme tamamlandı.');
     }
 
 
