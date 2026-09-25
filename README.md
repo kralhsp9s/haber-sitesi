@@ -92,3 +92,7 @@ GraphQL bağlantısındaki `edges` kayıtları `node` nesnesine dönüştürül�
 çekilir. Bu nedenle örnek API çıktısındaki `has_next_page: true` durumu da desteklenir.
 
 \n## Günlük API kotası\n\nRapidAPI istekleri UTC gününe göre DB'de sayılır ve günlük 8 istekle sınırlandırılır. Oturum açtıktan sonra `GET /api/usage` endpoint'i kullanılan/kalan kotayı verir. Otomatik kontrol zamanlaması günde bire düşürüldü.\n
+
+### Instagram kullanıcı adı → ID
+
+Kullanıcı adıyla ID çözümlemek için [InstagramAPI.dev](https://api.instagramapi.dev/instagram-user-info-api) üzerinden API anahtarı alın ve ortam değişkeni olarak `INSTAGRAMAPI_KEY` tanımlayın. Yeni hesaplara 50 başlangıç kredisi verildiği belirtiliyor; istek başına 1 kredi tüketilir. Anahtar yoksa yapılandırılmış RapidAPI yedeği kullanılır.

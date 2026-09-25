@@ -6,7 +6,6 @@ const axios = require('axios');
 const path = require('path');
 const webpush = require('web-push');
 const vm = require('vm');
-const InstagramWebApi = require('instagram-web-api');
 
 const { readDB, writeDB } = require('./database');
 
@@ -909,28 +908,36 @@ app.get(
       });
     }
 
-    // Önce ücretsiz instagram-web-api modülüyle herkese açık profili çözmeyi dene.
-    // Bu adım RapidAPI günlük 8 istek kotasını tüketmez. Paket eski olduğundan
-    // başarısız olursa mevcut RapidAPI yedeğine geçilir.
-    try {
-      const instagram = new InstagramWebApi({});
-      const profile = await instagram.getUserByUsername({ username });
-      const moduleUserId = extractUserId(profile, username, { allowUnverifiedDirect: true });
-      if (moduleUserId) {
-        return res.json({
-          success: true,
-          username: extractUsername(profile, username).replace(/^@/, ''),
-          userId: moduleUserId,
-          source: 'instagram-web-api (ücretsiz modül)'
+    // Önce InstagramAPI.dev üzerinden username -> numeric ID çözümle.
+    // API anahtarı: INSTAGRAMAPI_KEY ortam değişkeni (50 ücretsiz başlangıç kredisi sunar).
+    const instagramApiKey = process.env.INSTAGRAMAPI_KEY;
+    if (instagramApiKey) {
+      try {
+        const lookupResponse = await axios.get('https://api.instagramapi.dev/v1/profile', {
+          params: { handle: username },
+          headers: { Authorization: `Bearer ${instagramApiKey}`, Accept: 'application/json' },
+          timeout: 20000
         });
+        const body = lookupResponse.data;
+        const candidate = body?.user || body?.data?.user || body?.data || body?.profile || body;
+        const resolvedId = candidate?.id || candidate?.user_id || candidate?.pk || candidate?.pk_id;
+        if (resolvedId && /^\d+$/.test(String(resolvedId))) {
+          return res.json({
+            success: true,
+            username: String(candidate?.username || candidate?.handle || username).replace(/^@/, ''),
+            userId: String(resolvedId),
+            source: 'InstagramAPI.dev'
+          });
+        }
+        console.warn('[USERNAME LOOKUP] InstagramAPI.dev yanıtında ID alanı bulunamadı.');
+      } catch (providerError) {
+        console.warn('[USERNAME LOOKUP] InstagramAPI.dev başarısız:', providerError.response?.data || providerError.message);
       }
-    } catch (moduleError) {
-      console.warn('[USERNAME LOOKUP] instagram-web-api başarısız; RapidAPI deneniyor:', moduleError.message);
     }
 
     if (!db.settings.apiKey) {
       return res.status(502).json({
-        error: 'Ücretsiz modül bu kullanıcı adını çözemedi. RapidAPI yedeğini kullanmak için API anahtarını ayarlayın.'
+        error: 'InstagramAPI.dev anahtarı tanımlı değil veya kullanıcı adı çözümlenemedi. INSTAGRAMAPI_KEY ayarlayın ya da RapidAPI yedeğini yapılandırın.'
       });
     }
 
