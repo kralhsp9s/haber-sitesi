@@ -9,7 +9,7 @@ function buildDefaults() {
   return {
     apiKey: '',
     apiHost: process.env.INSTAGRAM_API_HOST || 'instagram-scraper2.p.rapidapi.com',
-    apiPath: process.env.INSTAGRAM_API_PATH || '/user_medias',
+    apiPath: process.env.INSTAGRAM_API_PATH || '/medias',
     userLookupPath: process.env.INSTAGRAM_USER_LOOKUP_PATH || '/search_user',
     storyPath: process.env.INSTAGRAM_STORY_PATH || '',
     sourcebinUrl: process.env.SOURCEBIN_API_URL || 'https://sourceb.in/api',
@@ -37,7 +37,19 @@ function readDB() {
 
   try {
     const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-    data.settings = { ...defaults.settings, ...(data.settings || {}) };
+    const savedSettings = data.settings || {};
+    data.settings = { ...defaults.settings, ...savedSettings };
+
+    // Eski sürümün yerleşik /user_medias yolu bu sağlayıcıdaki GET /medias
+    // endpointiyle uyumlu değildi. Kullanıcı özel bir yol tanımlamadıysa
+    // mevcut DB'yi yeni endpoint'e otomatik geçir.
+    if (
+      !process.env.INSTAGRAM_API_PATH &&
+      savedSettings.apiPath === '/user_medias'
+    ) {
+      data.settings.apiPath = '/medias';
+    }
+
     data.profiles = Array.isArray(data.profiles) ? data.profiles : [];
     data.media = Array.isArray(data.media) ? data.media : [];
     data.logs = Array.isArray(data.logs) ? data.logs : [];

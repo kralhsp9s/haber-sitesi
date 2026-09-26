@@ -1549,6 +1549,12 @@ function pickArray(body) {
     body?.xdt_api__v1__usertags__user_id__feed_connection?.edges,
     body?.data?.xdt_api__v1__feed_connection?.edges,
     body?.data?.feed_connection?.edges,
+
+    // RapidAPI Instagram Scraper - GET /medias response:
+    // data.user.edge_owner_to_timeline_media.edges[].node
+    body?.data?.user?.edge_owner_to_timeline_media?.edges,
+    body?.user?.edge_owner_to_timeline_media?.edges,
+
     body?.data
   ];
 
@@ -1580,7 +1586,15 @@ function pickNextCursor(body) {
       : null,
     body?.data?.xdt_api__v1__usertags__user_id__feed_connection?.page_info?.end_cursor,
     body?.data?.xdt_api__v1__feed_connection?.page_info?.end_cursor,
-    body?.data?.feed_connection?.page_info?.end_cursor
+    body?.data?.feed_connection?.page_info?.end_cursor,
+
+    // RapidAPI Instagram Scraper - GET /medias pagination.
+    body?.data?.user?.edge_owner_to_timeline_media?.page_info?.has_next_page
+      ? body?.data?.user?.edge_owner_to_timeline_media?.page_info?.end_cursor
+      : null,
+    body?.user?.edge_owner_to_timeline_media?.page_info?.has_next_page
+      ? body?.user?.edge_owner_to_timeline_media?.page_info?.end_cursor
+      : null
   ];
 
   return (
@@ -1665,24 +1679,18 @@ async function fetchInstagramDataForProfile(
     const remaining = targetCount - collected.length;
     const count = Math.min(50, remaining);
 
+    // GET /medias endpoint'i yalnızca kendi dokümantasyonundaki
+    // query parametrelerini kullanır: user_id, batch_size ve max_id.
+    // Eski kod aynı istekte username/count/limit/page_size/cursor gibi
+    // farklı sağlayıcıların parametrelerini karıştırıyordu; bu bazı
+    // sağlayıcılarda isteğin yanlış yorumlanmasına neden oluyordu.
     const params = {
       user_id: profile.userId,
-      username: profile.username,
-      count,
-      limit: count,
-      page_size: count
+      batch_size: count
     };
 
     if (cursor) {
-      params.cursor = cursor;
       params.max_id = cursor;
-      params.next_max_id = cursor;
-      params.next_cursor = cursor;
-    }
-
-    // Bazı sağlayıcılar sayfa numarası bekliyor.
-    if (!cursor && page > 0) {
-      params.page = page + 1;
     }
 
     const response = await axios.get(
@@ -1829,14 +1837,17 @@ function normalizeMedia(
 
   const firstImage =
     item?.image_versions2?.candidates?.[0] ||
-    item?.carousel_media?.[0]?.image_versions2?.candidates?.[0];
+    item?.carousel_media?.[0]?.image_versions2?.candidates?.[0] ||
+    item?.display_resources?.[0] ||
+    null;
 
   const imageUrl =
-    firstImage?.url ||
-    item?.display_uri ||
-    item?.thumbnail_url ||
     item?.display_url ||
+    item?.display_uri ||
     item?.image_url ||
+    firstImage?.url ||
+    firstImage?.src ||
+    item?.thumbnail_url ||
     item?.url ||
     '';
 
@@ -1911,9 +1922,9 @@ function normalizeMedia(
     carouselMediaCount:
       item?.carousel_media_count ?? null,
     originalHeight:
-      Number(item?.original_height || firstImage?.height || 0) || null,
+      Number(item?.original_height || item?.dimensions?.height || firstImage?.height || 0) || null,
     originalWidth:
-      Number(item?.original_width || firstImage?.width || 0) || null,
+      Number(item?.original_width || item?.dimensions?.width || firstImage?.width || 0) || null,
     imageWidth:
       Number(firstImage?.width || 0) || null,
     imageHeight:
