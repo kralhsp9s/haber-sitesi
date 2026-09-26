@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
           data.apiPath || '/medias';
 
         document.getElementById('modal-user-path').value =
-          data.userLookupPath || '/search_user';
+          data.userLookupPath || '/user_info';
 
         document.getElementById('modal-story-path').value =
           data.storyPath || '';
