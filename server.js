@@ -946,7 +946,7 @@ app.get(
       .replace(/\/+$/, '');
 
     const configuredPath =
-      String(db.settings.userLookupPath || '/search_user').trim();
+      String(db.settings.userLookupPath || '/user_info').trim();
 
     // user_tagged profil araması için uygun değildir; kendi gönderileri/tagged
     // ayrımını netleştirmek için otomatik olarak kullanıcı arama endpoint'ine döneriz.
@@ -1535,6 +1535,10 @@ app.post(
 
 function pickArray(body) {
   const candidates = [
+    // Bu sağlayıcının /medias response'u: data.user.edge_owner_to_timeline_media.edges
+    body?.data?.user?.edge_owner_to_timeline_media?.edges,
+    body?.user?.edge_owner_to_timeline_media?.edges,
+    body?.data?.user?.edge_owner_to_timeline_media?.items,
     body?.items,
     body?.medias,
     body?.posts,
@@ -1549,12 +1553,6 @@ function pickArray(body) {
     body?.xdt_api__v1__usertags__user_id__feed_connection?.edges,
     body?.data?.xdt_api__v1__feed_connection?.edges,
     body?.data?.feed_connection?.edges,
-
-    // RapidAPI Instagram Scraper - GET /medias response:
-    // data.user.edge_owner_to_timeline_media.edges[].node
-    body?.data?.user?.edge_owner_to_timeline_media?.edges,
-    body?.user?.edge_owner_to_timeline_media?.edges,
-
     body?.data
   ];
 
@@ -1563,6 +1561,9 @@ function pickArray(body) {
 
 function pickNextCursor(body) {
   const candidates = [
+    // /medias pagination: data.user.edge_owner_to_timeline_media.page_info
+    body?.data?.user?.edge_owner_to_timeline_media?.page_info?.end_cursor,
+    body?.user?.edge_owner_to_timeline_media?.page_info?.end_cursor,
     body?.next_cursor,
     body?.nextCursor,
     body?.cursor?.next,
@@ -1586,15 +1587,7 @@ function pickNextCursor(body) {
       : null,
     body?.data?.xdt_api__v1__usertags__user_id__feed_connection?.page_info?.end_cursor,
     body?.data?.xdt_api__v1__feed_connection?.page_info?.end_cursor,
-    body?.data?.feed_connection?.page_info?.end_cursor,
-
-    // RapidAPI Instagram Scraper - GET /medias pagination.
-    body?.data?.user?.edge_owner_to_timeline_media?.page_info?.has_next_page
-      ? body?.data?.user?.edge_owner_to_timeline_media?.page_info?.end_cursor
-      : null,
-    body?.user?.edge_owner_to_timeline_media?.page_info?.has_next_page
-      ? body?.user?.edge_owner_to_timeline_media?.page_info?.end_cursor
-      : null
+    body?.data?.feed_connection?.page_info?.end_cursor
   ];
 
   return (
@@ -1647,7 +1640,7 @@ async function fetchInstagramDataForProfile(
     .replace(/^https?:\/\//i, '')
     .replace(/\/+$/, '');
   const configuredPath =
-    String(db.settings.apiPath || '/user_medias').trim();
+    String(db.settings.apiPath || '/medias').trim();
 
   if (!apiKey) {
     throw new Error(
@@ -1679,13 +1672,13 @@ async function fetchInstagramDataForProfile(
     const remaining = targetCount - collected.length;
     const count = Math.min(50, remaining);
 
-    // GET /medias endpoint'i yalnızca kendi dokümantasyonundaki
-    // query parametrelerini kullanır: user_id, batch_size ve max_id.
-    // Eski kod aynı istekte username/count/limit/page_size/cursor gibi
-    // farklı sağlayıcıların parametrelerini karıştırıyordu; bu bazı
-    // sağlayıcılarda isteğin yanlış yorumlanmasına neden oluyordu.
+    // RapidAPI'deki bu sağlayıcının /medias sözleşmesi:
+    // user_id + batch_size; sonraki sayfa için max_id.
+    // Buraya username/count/limit/page_size gibi başka sağlayıcılara ait
+    // parametreleri göndermiyoruz; yanlış query nedeniyle 4xx alınmasının
+    // önüne geçiyoruz.
     const params = {
-      user_id: profile.userId,
+      user_id: String(profile.userId),
       batch_size: count
     };
 
@@ -1835,31 +1828,46 @@ function normalizeMedia(
         ? 'story'
         : 'post';
 
+  const firstCarouselNode =
+    item?.edge_sidecar_to_children?.edges?.[0]?.node ||
+    item?.edge_sidecar_to_children?.[0]?.node ||
+    null;
+
   const firstImage =
     item?.image_versions2?.candidates?.[0] ||
     item?.carousel_media?.[0]?.image_versions2?.candidates?.[0] ||
     item?.display_resources?.[0] ||
+    firstCarouselNode ||
     null;
 
   const imageUrl =
-    item?.display_url ||
-    item?.display_uri ||
-    item?.image_url ||
     firstImage?.url ||
     firstImage?.src ||
+    item?.display_uri ||
     item?.thumbnail_url ||
+    item?.display_url ||
+    item?.image_url ||
     item?.url ||
     '';
 
   const videoUrl =
     item?.video_versions?.[0]?.url ||
     item?.video_url ||
+    item?.video_url_list?.[0]?.url ||
     item?.carousel_media?.[0]?.video_versions?.[0]?.url ||
+    firstCarouselNode?.video_url ||
+    firstCarouselNode?.video_versions?.[0]?.url ||
+    '';
+
+  const graphCaption =
+    item?.edge_media_to_caption?.edges?.[0]?.node?.text ||
+    item?.edge_media_to_caption?.edges?.[0]?.node?.text?.trim?.() ||
     '';
 
   const caption =
     item?.caption?.text ||
     item?.caption ||
+    graphCaption ||
     item?.title ||
     '';
 
@@ -1898,21 +1906,26 @@ function normalizeMedia(
     caption: caption || 'Açıklama yok',
     accessibilityCaption:
       item?.accessibility_caption ||
+      item?.accessibility_caption?.text ||
+      item?.accessibility_caption ||
       '',
     likes: Number(
       item?.like_count ??
       item?.likes ??
+      item?.edge_liked_by?.count ??
+      item?.edge_media_preview_like?.count ??
       0
     ),
     comments: Number(
       item?.comment_count ??
       item?.comments ??
+      item?.edge_media_to_comment?.count ??
       0
     ),
     viewCount:
-      item?.view_count == null
+      (item?.view_count ?? item?.video_view_count) == null
         ? null
-        : Number(item.view_count),
+        : Number(item.view_count ?? item.video_view_count),
     commentsDisabled:
       item?.comments_disabled ?? null,
     likeAndViewCountsDisabled:
@@ -1920,7 +1933,9 @@ function normalizeMedia(
     audience:
       item?.audience ?? null,
     carouselMediaCount:
-      item?.carousel_media_count ?? null,
+      item?.carousel_media_count ??
+      item?.edge_sidecar_to_children?.edges?.length ??
+      null,
     originalHeight:
       Number(item?.original_height || item?.dimensions?.height || firstImage?.height || 0) || null,
     originalWidth:

@@ -67,7 +67,7 @@ User ID çözümleme farklı RapidAPI sağlayıcılarının yanıtlarını deste
 ### Son 500 içerik
 Media import tarafında cursor, `next_cursor`, `next_max_id`, `end_cursor`, pagination token ve benzeri yaygın sayfalama alanları desteklenir. Aynı kayıt tekrar dönerse dedupe edilir ve 500 benzersiz içerik hedeflenir.
 
-Önemli: `/user_tagged` bir kullanıcının **kendi gönderileri** için değildir; etiketlendiği içerikleri döndürür. Kendi gönderilerini almak için RapidAPI sağlayıcınızın `/medias`, `/medias` veya eşdeğer endpointini kullanın.
+Önemli: `/user_tagged` bir kullanıcının **kendi gönderileri** için değildir; etiketlendiği içerikleri döndürür. Kendi gönderilerini almak için RapidAPI sağlayıcınızın `/user_medias`, `/user_posts` veya eşdeğer endpointini kullanın.
 
 RapidAPI kimlik doğrulamasında `X-RapidAPI-Host` ve `X-RapidAPI-Key` başlıklarının kullanılması gerektiği RapidAPI dokümantasyonunda belirtiliyor. citeturn769200search12
 

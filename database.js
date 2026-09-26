@@ -8,9 +8,9 @@ function buildDefaults() {
   const defaultPassword = process.env.ADMIN_PASSWORD || 'admin123';
   return {
     apiKey: '',
-    apiHost: process.env.INSTAGRAM_API_HOST || 'instagram-scraper2.p.rapidapi.com',
+    apiHost: process.env.INSTAGRAM_API_HOST || 'instagram28.p.rapidapi.com',
     apiPath: process.env.INSTAGRAM_API_PATH || '/medias',
-    userLookupPath: process.env.INSTAGRAM_USER_LOOKUP_PATH || '/search_user',
+    userLookupPath: process.env.INSTAGRAM_USER_LOOKUP_PATH || '/user_info',
     storyPath: process.env.INSTAGRAM_STORY_PATH || '',
     sourcebinUrl: process.env.SOURCEBIN_API_URL || 'https://sourceb.in/api',
     adminUser: process.env.ADMIN_USER || 'admin',
@@ -37,19 +37,18 @@ function readDB() {
 
   try {
     const data = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-    const savedSettings = data.settings || {};
-    data.settings = { ...defaults.settings, ...savedSettings };
+    data.settings = { ...defaults.settings, ...(data.settings || {}) };
 
-    // Eski sürümün yerleşik /user_medias yolu bu sağlayıcıdaki GET /medias
-    // endpointiyle uyumlu değildi. Kullanıcı özel bir yol tanımlamadıysa
-    // mevcut DB'yi yeni endpoint'e otomatik geçir.
-    if (
-      !process.env.INSTAGRAM_API_PATH &&
-      savedSettings.apiPath === '/user_medias'
-    ) {
+    // Eski sürüm ayarlarını bu RapidAPI sağlayıcısının gerçek endpoint'lerine taşı.
+    if (data.settings.apiHost === 'instagram-scraper2.p.rapidapi.com') {
+      data.settings.apiHost = 'instagram28.p.rapidapi.com';
+    }
+    if (!data.settings.apiPath || data.settings.apiPath === '/user_medias') {
       data.settings.apiPath = '/medias';
     }
-
+    if (!data.settings.userLookupPath || data.settings.userLookupPath === '/search_user') {
+      data.settings.userLookupPath = '/user_info';
+    }
     data.profiles = Array.isArray(data.profiles) ? data.profiles : [];
     data.media = Array.isArray(data.media) ? data.media : [];
     data.logs = Array.isArray(data.logs) ? data.logs : [];
