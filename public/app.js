@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
           data.apiHost || '';
 
         document.getElementById('modal-api-path').value =
-          data.apiPath || '/user_medias';
+          data.apiPath || '/medias';
 
         document.getElementById('modal-user-path').value =
           data.userLookupPath || '/search_user';
