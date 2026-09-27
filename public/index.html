@@ -3,14 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <title>Instagram Enterprise Intelligence</title>
-
+  <title>insta takip - Enterprise Intelligence</title>
+  
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0f172a">
 
   <script src="https://cdn.tailwindcss.com"></script>
-
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -22,102 +20,57 @@
               600: '#c13584',
               700: '#833ab4'
             }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
           }
         }
       }
     }
   </script>
 
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-  >
-
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/style.css">
+  
+  <style>
+    /* Pürüzsüz animasyonlar ve modern kaydırma çubuğu */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    .drawer-open { transform: translateX(0) !important; }
+    .overlay-open { opacity: 1 !important; pointer-events: auto !important; }
+  </style>
 </head>
 
-<body
-  class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white"
->
+<body class="bg-slate-950 text-slate-200 min-h-screen flex flex-col font-sans antialiased selection:bg-rose-500 selection:text-white">
 
   <!-- =========================================================
        LOGIN SCREEN
   ========================================================== -->
-  <div
-    id="login-screen"
-    class="fixed inset-0 z-50 bg-slate-950 flex items-center justify-center p-4"
-  >
-    <div
-      class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl space-y-6"
-    >
-
-      <div class="text-center space-y-2">
-
-        <div
-          class="inline-flex p-4 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white mb-2"
-        >
-          <i class="fa-brands fa-instagram text-4xl"></i>
+  <div id="login-screen" class="fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300">
+    <div class="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-8 transform transition-all">
+      <div class="text-center space-y-3">
+        <div class="inline-flex p-5 rounded-2xl bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 text-white mb-2 shadow-lg shadow-rose-500/30">
+          <i class="fa-brands fa-instagram text-5xl"></i>
         </div>
-
-        <h1 class="text-2xl font-bold tracking-tight text-white">
-          Enterprise Access
-        </h1>
-
-        <p class="text-sm text-slate-400">
-          Devam etmek için kullanıcı bilgilerinizi girin.
-        </p>
-
+        <h1 class="text-3xl font-black tracking-tight text-white">Enterprise Access 🚀</h1>
+        <p class="text-sm text-slate-400 font-medium">Devam etmek için kullanıcı bilgilerinizi girin.</p>
       </div>
 
-      <!-- LOGIN FORM -->
-      <form id="login-form" class="space-y-4">
-
-        <div>
-          <label
-            for="username"
-            class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1"
-          >
-            Kullanıcı Adı
-          </label>
-
-          <input
-            type="text"
-            id="username"
-            name="username"
-            autocomplete="username"
-            required
-            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-brand-500"
-          >
+      <form id="login-form" class="space-y-5">
+        <div class="space-y-1.5">
+          <label for="username" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Kullanıcı Adı</label>
+          <input type="text" id="username" name="username" autocomplete="username" required class="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3.5 text-white placeholder-slate-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all">
         </div>
-
-        <div>
-          <label
-            for="password"
-            class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1"
-          >
-            Şifre
-          </label>
-
-          <input
-            type="password"
-            id="password"
-            name="password"
-            autocomplete="current-password"
-            required
-            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-brand-500"
-          >
+        <div class="space-y-1.5">
+          <label for="password" class="block text-xs font-bold uppercase tracking-wider text-slate-400">Şifre</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required class="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3.5 text-white placeholder-slate-600 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all">
         </div>
-
-        <button
-          type="submit"
-          class="w-full bg-gradient-to-r from-rose-500 to-purple-600 text-white font-semibold py-3 rounded-lg hover:opacity-90 transition shadow-lg"
-        >
-          <i class="fa-solid fa-right-to-bracket mr-2"></i>
-          Giriş Yap
+        <button type="submit" class="w-full bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-purple-500/25 active:scale-[0.98] flex items-center justify-center gap-2">
+          Giriş Yap <i class="fa-solid fa-arrow-right"></i>
         </button>
-
       </form>
-
     </div>
   </div>
 
@@ -125,482 +78,253 @@
   <!-- =========================================================
        MAIN DASHBOARD
   ========================================================== -->
-  <div
-    id="app-dashboard"
-    class="hidden flex-1 flex flex-col"
-  >
+  <div id="app-dashboard" class="hidden flex-1 flex flex-col relative">
 
     <!-- =======================================================
-         NAVBAR
+         YENİ MODERN NAVBAR
     ======================================================== -->
-    <header
-      class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700 sticky top-0 z-40 px-6 py-4 flex items-center justify-between"
-    >
-
-      <!-- LOGO -->
-      <div class="flex items-center space-x-3">
-
-        <i class="fa-brands fa-instagram text-2xl text-rose-500"></i>
-
-        <span
-          class="font-bold text-lg tracking-wide bg-gradient-to-r from-rose-400 to-purple-400 bg-clip-text text-transparent"
-        >
-          InstaTracker Enterprise
-        </span>
-
-      </div>
-
-
-      <!-- NAV / TOOLS -->
-      <div class="header-tools">
-
-        <nav class="dashboard-nav" aria-label="Ana menü">
-
-          <button
-            id="btn-open-dashboard"
-            class="nav-btn active"
-            type="button"
-          >
-            <i class="fa-solid fa-gauge-high"></i>
-            <span>Panel</span>
-          </button>
-
-          <button
-            id="btn-open-eval"
-            class="nav-btn"
-            type="button"
-          >
-            <i class="fa-solid fa-terminal"></i>
-            <span>Tam Eval</span>
-          </button>
-
-        </nav>
-
-        <!-- SYNC -->
-        <button
-          id="btn-sync"
-          title="Instagram arşivini şimdi güncelle"
-          class="tool-btn success"
-        >
-          <i class="fa-solid fa-rotate"></i>
-          <span>Manuel Yenile</span>
-        </button>
-
-        <!-- NOTIFICATIONS -->
-        <button
-          id="btn-notifications"
-          class="tool-btn"
-          title="Bildirimleri aç / test bildirimi gönder"
-          type="button"
-        >
-          <i class="fa-regular fa-bell"></i>
-          <span>Bildirim</span>
-        </button>
-
-        <!-- INSTALL -->
-        <button
-          id="btn-install"
-          class="tool-btn install"
-          type="button"
-          title="Ana ekrana ekle"
-        >
-          <i class="fa-solid fa-mobile-screen-button"></i>
-          <span>Ana Ekrana Ekle</span>
-        </button>
-
-        <!-- API KEY -->
-        <button
-          id="btn-api-key"
-          class="tool-btn icon-only"
-          type="button"
-          title="API ayarları"
-        >
-          <i class="fa-solid fa-key"></i>
-        </button>
-
-        <!-- THEME -->
-        <div class="relative">
-          <button
-            id="btn-theme"
-            class="tool-btn"
-            title="Tema"
-            type="button"
-          >
-            <i class="fa-solid fa-circle-half-stroke"></i>
-            <span id="theme-label">Otomatik</span>
-          </button>
-
-          <div
-            id="theme-menu"
-            class="theme-menu hidden"
-          >
-            <button data-theme="auto">
-              <i class="fa-solid fa-circle-half-stroke"></i>
-              Otomatik
-            </button>
-            <button data-theme="light">
-              <i class="fa-solid fa-sun"></i>
-              Aydınlık
-            </button>
-            <button data-theme="dark">
-              <i class="fa-solid fa-moon"></i>
-              Karanlık
-            </button>
-          </div>
+    <header class="bg-slate-900/80 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-40 px-4 py-3 sm:px-6 flex items-center justify-between shadow-sm">
+      
+      <!-- LOGO VE YAZI -->
+      <div class="flex items-center gap-3 cursor-pointer group">
+        <div class="p-2 rounded-xl bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform duration-300">
+          <i class="fa-brands fa-instagram text-white text-xl flex items-center justify-center"></i>
         </div>
-
-        <!-- LOGOUT -->
-        <button
-          id="btn-logout"
-          class="tool-btn danger icon-only"
-          title="Çıkış Yap"
-          type="button"
-        >
-          <i class="fa-solid fa-right-from-bracket"></i>
-        </button>
-
+        <span class="font-black text-xl sm:text-2xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+          insta takip
+        </span>
       </div>
 
+      <!-- REFRESH VE HAMBURGER MENÜ -->
+      <div class="flex items-center gap-2 sm:gap-4">
+        <!-- REFRESH -->
+        <button id="btn-sync" title="Manuel Yenile" class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-800/50 border border-slate-700 text-slate-300 hover:text-emerald-400 hover:bg-slate-800 hover:border-emerald-500/50 transition-all duration-300 active:scale-90 group">
+          <i class="fa-solid fa-rotate group-active:animate-spin text-lg"></i>
+        </button>
+
+        <!-- HAMBURGER AÇMA -->
+        <button id="btn-menu-open" type="button" class="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-800/80 text-white hover:bg-rose-500 border border-slate-700 hover:border-rose-500 transition-all duration-300 shadow-sm active:scale-90">
+          <i class="fa-solid fa-bars text-lg"></i>
+        </button>
+      </div>
     </header>
 
 
     <!-- =======================================================
-         CONTENT
+         AÇILIR KAPANIR YAN MENÜ (DRAWER)
     ======================================================== -->
-    <main
-      id="dashboard-page"
-      class="dashboard-page flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6"
-    >
+    <div id="menu-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 opacity-0 pointer-events-none transition-opacity duration-300"></div>
+    
+    <aside id="side-menu" class="fixed top-0 right-0 h-full w-72 bg-slate-900 border-l border-slate-800 z-50 transform translate-x-full transition-transform duration-300 flex flex-col shadow-2xl">
+      <div class="flex items-center justify-between p-5 border-b border-slate-800">
+        <span class="font-bold text-slate-200 tracking-wide flex items-center gap-2">
+          <i class="fa-solid fa-layer-group text-rose-500"></i> Araçlar 🛠️
+        </span>
+        <button id="btn-menu-close" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:text-white hover:bg-rose-500 transition-all active:scale-90">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
 
+      <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+        <nav class="space-y-1 dashboard-nav">
+          <button id="btn-open-dashboard" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 text-slate-200 hover:bg-slate-800 hover:text-white border border-transparent hover:border-slate-700 transition-all text-left active">
+            <i class="fa-solid fa-gauge-high w-5 text-center text-blue-400"></i>
+            <span class="font-semibold text-sm">Panel</span>
+          </button>
+          
+          <button id="btn-open-eval" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-800/50 text-slate-200 hover:bg-slate-800 hover:text-white border border-transparent hover:border-slate-700 transition-all text-left">
+            <i class="fa-solid fa-terminal w-5 text-center text-emerald-400"></i>
+            <span class="font-semibold text-sm">Tam Eval</span>
+          </button>
+        </nav>
 
-      <!-- =====================================================
-           LEFT COLUMN
-      ====================================================== -->
-      <section class="space-y-6">
+        <hr class="border-slate-800 my-2">
 
+        <button id="btn-notifications" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800 transition-all text-left">
+          <i class="fa-regular fa-bell w-5 text-center text-amber-400"></i>
+          <span class="text-sm font-medium">Bildirimler 🔔</span>
+        </button>
 
-        <!-- PROFİL EKLE -->
-        <div
-          class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg"
-        >
+        <button id="btn-install" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800 transition-all text-left install">
+          <i class="fa-solid fa-mobile-screen-button w-5 text-center text-purple-400"></i>
+          <span class="text-sm font-medium">Ana Ekrana Ekle 📱</span>
+        </button>
 
-          <h2
-            class="text-base font-semibold mb-4 flex items-center gap-2 text-rose-400"
-          >
-            <i class="fa-solid fa-user-plus"></i>
-            Target Profil Ekle
-          </h2>
+        <button id="btn-api-key" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800 transition-all text-left">
+          <i class="fa-solid fa-key w-5 text-center text-slate-400"></i>
+          <span class="text-sm font-medium">API Ayarları ⚙️</span>
+        </button>
 
-
-          <form
-            id="add-profile-form"
-            class="space-y-3"
-          >
-
-            <input
-              type="text"
-              id="target-username"
-              placeholder="Instagram Kullanıcı Adı (ör: instagram)"
-              autocomplete="off"
-              required
-              class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500"
-            >
-
-
-            <input
-              type="text"
-              id="target-userid"
-              placeholder="ID otomatik bulunacak"
-            
-              required
-              class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-rose-500"
-            >
-
-
-            <div class="flex gap-2">
-
-              <button
-                type="button"
-                id="btn-resolve-user"
-                class="secondary-btn flex-1"
-              >
-                <i class="fa-solid fa-magnifying-glass"></i>
-                ID Bul
-              </button>
-
-
-              <button
-                type="submit"
-                class="primary-btn flex-1"
-              >
-                <i class="fa-solid fa-user-plus"></i>
-                Takibe Al
-              </button>
-
-            </div>
-
-
-            <div
-              id="resolve-status"
-              class="text-xs muted min-h-4"
-            ></div>
-
-          </form>
-
+        <!-- Tema Dropdown -->
+        <div class="relative mt-2">
+          <button id="btn-theme" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-300 hover:bg-slate-800 transition-all text-left">
+            <i class="fa-solid fa-circle-half-stroke w-5 text-center text-sky-400"></i>
+            <span class="text-sm font-medium flex-1">Tema</span>
+            <span id="theme-label" class="text-xs text-slate-500 bg-slate-900 px-2 py-1 rounded-md">Oto</span>
+          </button>
+          <div id="theme-menu" class="hidden flex-col gap-1 p-2 bg-slate-950 border border-slate-800 rounded-xl mt-1 mx-2">
+            <button data-theme="auto" class="text-xs text-left px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg"><i class="fa-solid fa-circle-half-stroke mr-1"></i> Otomatik</button>
+            <button data-theme="light" class="text-xs text-left px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg"><i class="fa-solid fa-sun mr-1"></i> Aydınlık</button>
+            <button data-theme="dark" class="text-xs text-left px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg"><i class="fa-solid fa-moon mr-1"></i> Karanlık</button>
+          </div>
         </div>
+      </div>
 
+      <div class="p-4 border-t border-slate-800">
+        <button id="btn-logout" class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white border border-rose-500/20 transition-all font-bold text-sm">
+          <i class="fa-solid fa-right-from-bracket"></i> Çıkış Yap
+        </button>
+      </div>
+    </aside>
+
+
+    <!-- =======================================================
+         CONTENT - DASHBOARD
+    ======================================================== -->
+    <main id="dashboard-page" class="dashboard-page flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- LEFT COLUMN -->
+      <section class="space-y-6">
+        
+        <!-- PROFİL EKLE -->
+        <div class="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h2 class="text-sm font-bold mb-5 flex items-center gap-2 text-rose-400 uppercase tracking-wider">
+            <i class="fa-solid fa-user-plus"></i> Target Profil Ekle
+          </h2>
+          <form id="add-profile-form" class="space-y-4">
+            <input type="text" id="target-username" placeholder="Instagram Kullanıcı Adı (ör: instagram)" autocomplete="off" required class="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all">
+            <input type="text" id="target-userid" placeholder="ID otomatik bulunacak" required class="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all">
+            <div class="flex gap-3">
+              <button type="button" id="btn-resolve-user" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold py-3 rounded-xl transition-all shadow-sm">
+                <i class="fa-solid fa-magnifying-glass"></i> ID Bul
+              </button>
+              <button type="submit" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold py-3 rounded-xl transition-all shadow-lg shadow-rose-500/20">
+                <i class="fa-solid fa-user-plus"></i> Takibe Al
+              </button>
+            </div>
+            <div id="resolve-status" class="text-xs text-slate-500 min-h-4"></div>
+          </form>
+        </div>
 
         <!-- TAKİP EDİLEN PROFİLLER -->
-        <div
-          class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg"
-        >
-
-          <h2
-            class="text-base font-semibold mb-3 flex items-center justify-between text-slate-200"
-          >
-
-            <span>
-              <i class="fa-solid fa-users text-purple-400"></i>
-              Takip Edilen Profiller
-            </span>
-
-            <span
-              id="profile-count"
-              class="text-xs bg-slate-700 px-2 py-0.5 rounded-full"
-            >
-              0
-            </span>
-
+        <div class="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h2 class="text-sm font-bold mb-4 flex items-center justify-between text-slate-200 uppercase tracking-wider">
+            <span class="flex items-center gap-2"><i class="fa-solid fa-users text-purple-400"></i> Takip Edilenler</span>
+            <span id="profile-count" class="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-full font-mono border border-slate-700">0</span>
           </h2>
-
-
-          <div
-            id="profile-list"
-            class="space-y-2 max-h-80 overflow-y-auto pr-1"
-          >
+          <div id="profile-list" class="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scrollbar">
             <!-- Dinamik doldurulacak -->
           </div>
-
         </div>
-
 
         <!-- CANLI LOG -->
-        <div
-          class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg"
-        >
-
-          <h2
-            class="text-base font-semibold mb-3 flex items-center gap-2 text-amber-400"
-          >
-            <i class="fa-solid fa-list-check"></i>
-            Canlı Etkileşim & Değişim Logları
+        <div class="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+          <div class="absolute top-0 left-0 w-1 h-full bg-amber-500"></div>
+          <h2 class="text-sm font-bold mb-4 flex items-center gap-2 text-amber-400 uppercase tracking-wider">
+            <i class="fa-solid fa-bolt"></i> Etkileşim & Değişim Logları
           </h2>
-
-
-          <div
-            id="log-list"
-            class="space-y-2 max-h-72 overflow-y-auto text-xs font-mono"
-          >
+          <div id="log-list" class="space-y-2 max-h-72 overflow-y-auto text-xs font-mono text-slate-400">
             <!-- Loglar burada belirecek -->
           </div>
-
         </div>
 
       </section>
 
-
-      <!-- =====================================================
-           RIGHT COLUMN
-      ====================================================== -->
-      <section class="lg:col-span-2 space-y-4">
-
-
+      <!-- RIGHT COLUMN -->
+      <section class="lg:col-span-2 space-y-6">
+        
         <!-- MEDIA CARD -->
-        <div
-          class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-lg min-h-[500px]"
-        >
-
-          <!-- TITLE -->
-          <h2
-            class="text-lg font-bold flex items-center gap-2 text-slate-100 mb-6"
-          >
-            <i class="fa-brands fa-instagram text-rose-500 text-xl"></i>
-            Profil Arşivi
+        <div class="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl min-h-[600px] flex flex-col">
+          <h2 class="text-xl font-black flex items-center gap-2 text-white mb-6">
+            <i class="fa-brands fa-instagram text-rose-500 text-2xl"></i> Profil Arşivi 📸
           </h2>
 
-
           <!-- TABS -->
-          <div
-            class="flex border-b border-slate-700 mb-4 sm:mb-6"
-          >
-
-            <button
-              onclick="switchTab('post')"
-              id="tab-post"
-              class="flex-1 pb-2 sm:pb-3 text-[10px] sm:text-sm font-semibold text-rose-400 border-b-2 border-rose-500 transition-all flex justify-center items-center gap-1 sm:gap-2"
-            >
-              <i class="fa-solid fa-table-cells"></i>
-              GÖNDERİLER
+          <div class="flex border-b border-slate-800 mb-6 bg-slate-950/30 rounded-xl p-1">
+            <button onclick="switchTab('post')" id="tab-post" class="flex-1 py-3 text-xs sm:text-sm font-bold text-white bg-slate-800 rounded-lg shadow-sm transition-all flex justify-center items-center gap-2">
+              <i class="fa-solid fa-table-cells"></i> GÖNDERİLER
             </button>
-
-
-            <button
-              onclick="switchTab('reel')"
-              id="tab-reel"
-              class="flex-1 pb-2 sm:pb-3 text-[10px] sm:text-sm font-semibold text-slate-500 hover:text-slate-300 border-b-2 border-transparent transition-all flex justify-center items-center gap-1 sm:gap-2"
-            >
-              <i class="fa-solid fa-clapperboard"></i>
-              REELS
+            <button onclick="switchTab('reel')" id="tab-reel" class="flex-1 py-3 text-xs sm:text-sm font-bold text-slate-500 hover:text-slate-300 rounded-lg transition-all flex justify-center items-center gap-2">
+              <i class="fa-solid fa-clapperboard"></i> REELS
             </button>
-
-
-            <button
-              onclick="switchTab('story')"
-              id="tab-story"
-              class="flex-1 pb-2 sm:pb-3 text-[10px] sm:text-sm font-semibold text-slate-500 hover:text-slate-300 border-b-2 border-transparent transition-all flex justify-center items-center gap-1 sm:gap-2"
-            >
-              <i class="fa-solid fa-circle-notch"></i>
-              HİKAYELER
+            <button onclick="switchTab('story')" id="tab-story" class="flex-1 py-3 text-xs sm:text-sm font-bold text-slate-500 hover:text-slate-300 rounded-lg transition-all flex justify-center items-center gap-2">
+              <i class="fa-solid fa-circle-notch"></i> HİKAYELER
             </button>
-
           </div>
-
 
           <!-- MEDIA GRID -->
-          <div
-            id="media-grid"
-            class="grid grid-cols-3 gap-1 sm:gap-3"
-          >
+          <div id="media-grid" class="grid grid-cols-3 gap-2 sm:gap-4 flex-1">
             <!-- Dinamik içerik -->
           </div>
-
         </div>
 
       </section>
-
     </main>
 
     <!-- =====================================================
-         TAM EVAL SAYFASI
+         TAM EVAL SAYFASI (Eski Kodu Yeni Temayla Entegre Ettik)
     ====================================================== -->
-    <section
-      id="eval-page"
-      class="eval-page hidden flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6"
-      aria-label="Tam Eval"
-    >
-      <div class="eval-shell">
+    <section id="eval-page" class="eval-page hidden flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6" aria-label="Tam Eval">
+      <div class="eval-shell bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
 
-        <div class="eval-header">
+        <div class="eval-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div class="eyebrow">
-              <i class="fa-solid fa-terminal"></i>
-              GELİŞMİŞ KOD ALANI
+            <div class="eyebrow text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <i class="fa-solid fa-terminal"></i> GELİŞMİŞ KOD ALANI
             </div>
-            <h2 class="eval-title">Tam Eval</h2>
-            <p class="eval-description">
+            <h2 class="eval-title text-2xl font-black text-white">Tam Eval</h2>
+            <p class="eval-description text-sm text-slate-400 mt-1">
               JavaScript kodunu çalıştır, çıktıyı aşağıda gör; aynı kodu
               Sourcebin'e gönderebilir veya TXT olarak indirebilirsin.
             </p>
           </div>
-
-          <button
-            id="btn-eval-clear"
-            class="secondary-btn"
-            type="button"
-          >
-            <i class="fa-solid fa-eraser"></i>
-            Temizle
+          <button id="btn-eval-clear" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl transition-all font-semibold text-sm flex items-center gap-2 shadow-sm" type="button">
+            <i class="fa-solid fa-eraser"></i> Temizle
           </button>
         </div>
 
-        <div class="eval-grid">
+        <div class="eval-grid grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          <div class="eval-card">
-            <div class="eval-card-title">
-              <span>
-                <i class="fa-solid fa-code text-rose-400"></i>
-                Kod
-              </span>
-              <span class="eval-badge">JS</span>
+          <!-- KOD KARTI -->
+          <div class="eval-card bg-slate-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
+            <div class="eval-card-title flex items-center justify-between bg-slate-800/50 px-4 py-3 border-b border-slate-800 text-sm font-bold text-white">
+              <span class="flex items-center gap-2"><i class="fa-solid fa-code text-rose-400"></i> Kod</span>
+              <span class="eval-badge text-xs bg-slate-700 px-2 py-0.5 rounded text-amber-400 font-mono">JS</span>
             </div>
-
-            <textarea
-              id="eval-code"
-              class="eval-editor"
-              spellcheck="false"
-              autocomplete="off"
-              placeholder="// JavaScript kodunu buraya yaz...
-console.log('Merhaba dünya!');
-return 2 + 2;"
-            ></textarea>
-
-            <div class="eval-actions">
-              <button
-                id="btn-eval-run"
-                class="primary-btn eval-run"
-                type="button"
-              >
-                <i class="fa-solid fa-play"></i>
-                Çalıştır
+            <textarea id="eval-code" class="eval-editor flex-1 bg-transparent text-slate-300 p-4 font-mono text-sm focus:outline-none resize-none min-h-[250px]" spellcheck="false" autocomplete="off" placeholder="// JavaScript kodunu buraya yaz...&#10;console.log('Merhaba dünya!');&#10;return 2 + 2;"></textarea>
+            <div class="eval-actions bg-slate-800/30 p-3 flex flex-wrap gap-2 border-t border-slate-800">
+              <button id="btn-eval-run" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-sm transition-all flex justify-center items-center gap-2" type="button">
+                <i class="fa-solid fa-play"></i> Çalıştır
               </button>
-
-              <button
-                id="btn-eval-sourcebin"
-                class="secondary-btn sourcebin-btn"
-                type="button"
-              >
-                <i class="fa-solid fa-cloud-arrow-up"></i>
-                Sourcebin
+              <button id="btn-eval-sourcebin" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-2" type="button">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Sourcebin
               </button>
-
-              <button
-                id="btn-eval-txt"
-                class="secondary-btn"
-                type="button"
-              >
-                <i class="fa-solid fa-file-arrow-down"></i>
-                TXT
+              <button id="btn-eval-txt" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-2" type="button">
+                <i class="fa-solid fa-file-arrow-down"></i> TXT
               </button>
             </div>
-
-            <div id="sourcebin-result" class="sourcebin-result hidden"></div>
+            <div id="sourcebin-result" class="sourcebin-result hidden p-3 bg-slate-900 border-t border-slate-800 text-xs text-slate-300"></div>
           </div>
 
-          <div class="eval-card result-card">
-            <div class="eval-card-title">
-              <span>
-                <i class="fa-solid fa-square-terminal text-emerald-400"></i>
-                Sonuç
-              </span>
-              <button
-                id="btn-eval-copy"
-                class="icon-btn"
-                type="button"
-                title="Sonucu kopyala"
-              >
+          <!-- SONUÇ KARTI -->
+          <div class="eval-card result-card bg-slate-950 border border-slate-800 rounded-xl flex flex-col overflow-hidden">
+            <div class="eval-card-title flex items-center justify-between bg-slate-800/50 px-4 py-3 border-b border-slate-800 text-sm font-bold text-white">
+              <span class="flex items-center gap-2"><i class="fa-solid fa-square-terminal text-emerald-400"></i> Sonuç</span>
+              <button id="btn-eval-copy" class="text-slate-400 hover:text-white transition-colors" type="button" title="Sonucu kopyala">
                 <i class="fa-regular fa-copy"></i>
               </button>
             </div>
-
-            <div
-              id="eval-status"
-              class="eval-status muted"
-            >
-              Henüz kod çalıştırılmadı.
+            <div class="p-4 flex-1 flex flex-col">
+              <div id="eval-status" class="eval-status text-xs text-slate-500 mb-2">Henüz kod çalıştırılmadı.</div>
+              <pre id="eval-output" class="eval-output text-emerald-400 font-mono text-sm overflow-x-auto">Çıktı burada görünecek...</pre>
             </div>
-
-            <pre
-              id="eval-output"
-              class="eval-output"
-            >Çıktı burada görünecek...</pre>
           </div>
 
         </div>
 
-        <div class="eval-note">
-          <i class="fa-solid fa-shield-halved"></i>
-          Eval alanı sınırlı bir Node.js VM bağlamında çalışır; dosya sistemi,
-          <code>require</code>, ortam değişkenleri ve ağ erişimi doğrudan açılmaz.
+        <div class="eval-note bg-amber-500/10 border border-amber-500/20 text-amber-200/80 p-4 rounded-xl text-sm flex gap-3 items-start">
+          <i class="fa-solid fa-shield-halved mt-0.5"></i>
+          <p>Eval alanı sınırlı bir Node.js VM bağlamında çalışır; dosya sistemi, <code>require</code>, ortam değişkenleri ve ağ erişimi doğrudan açılmaz.</p>
         </div>
 
       </div>
@@ -610,201 +334,81 @@ return 2 + 2;"
 
 
   <!-- =========================================================
-       API KEY MODAL
+       API KEY MODAL (Karanlık Temaya Uyarlanan Modal)
   ========================================================== -->
-  <div
-    id="api-modal"
-    class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
-  >
-
-    <div
-      class="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md w-full space-y-4"
-    >
-
-      <h3
-        class="text-lg font-bold text-white flex items-center gap-2"
-      >
-        <i class="fa-solid fa-key text-amber-400"></i>
-        RapidAPI Yapılandırması
+  <div id="api-modal" class="hidden fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl transform transition-all scale-100">
+      
+      <h3 class="text-xl font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+        <i class="fa-solid fa-key text-amber-400"></i> RapidAPI Yapılandırması
       </h3>
 
+      <div class="space-y-4">
+        <!-- API KEY -->
+        <div>
+          <label for="modal-api-key" class="block text-xs font-bold text-slate-400 mb-1.5 uppercase">x-rapidapi-key</label>
+          <input type="text" id="modal-api-key" autocomplete="off" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-rose-500">
+        </div>
 
-      <!-- API KEY -->
-      <div>
+        <!-- API HOST -->
+        <div>
+          <label for="modal-api-host" class="block text-xs font-bold text-slate-400 mb-1.5 uppercase">RapidAPI Host</label>
+          <input type="text" id="modal-api-host" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-rose-500">
+        </div>
 
-        <label
-          for="modal-api-key"
-          class="block text-xs text-slate-400 mb-1"
-        >
-          x-rapidapi-key
-        </label>
+        <!-- MEDIA PATH -->
+        <div>
+          <label for="modal-api-path" class="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Media API Path</label>
+          <input type="text" id="modal-api-path" placeholder="/user_medias" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-rose-500">
+          <p class="text-[10px] text-slate-500 mt-1.5">Profilin kendi gönderilerini döndüren endpoint'i yazın.</p>
+        </div>
 
-        <input
-          type="text"
-          id="modal-api-key"
-          autocomplete="off"
-          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white"
-        >
+        <!-- USER ID PATH -->
+        <div>
+          <label for="modal-user-path" class="block text-xs font-bold text-slate-400 mb-1.5 uppercase">User ID Bulma API Path</label>
+          <input type="text" id="modal-user-path" placeholder="/search_user" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-rose-500">
+        </div>
 
+        <!-- STORY PATH -->
+        <div>
+          <label for="modal-story-path" class="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Hikâye API Path (opsiyonel)</label>
+          <input type="text" id="modal-story-path" placeholder="/user_stories" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-rose-500">
+        </div>
+        
+        <!-- SOURCEBIN -->
+        <div>
+          <label for="modal-sourcebin-url" class="block text-xs font-bold text-slate-400 mb-1.5 uppercase">Sourcebin API URL</label>
+          <input type="url" id="modal-sourcebin-url" placeholder="https://sourceb.in/api" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-rose-500">
+        </div>
       </div>
-
-
-      <!-- API HOST -->
-      <div>
-
-        <label
-          for="modal-api-host"
-          class="block text-xs text-slate-400 mb-1"
-        >
-          RapidAPI Host
-        </label>
-
-        <input
-          type="text"
-          id="modal-api-host"
-          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white"
-        >
-
-      </div>
-
-
-      <!-- MEDIA PATH -->
-      <div>
-
-        <label
-          for="modal-api-path"
-          class="block text-xs text-slate-400 mb-1"
-        >
-          Media API Path
-        </label>
-
-        <input
-          type="text"
-          id="modal-api-path"
-          placeholder="/user_medias"
-          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white"
-        >
-
-        <p class="text-[10px] text-slate-500 mt-1">
-          Profilin kendi gönderilerini döndüren endpoint'i yazın.
-        </p>
-
-      </div>
-
-
-      <!-- USER ID PATH -->
-      <div>
-
-        <label
-          for="modal-user-path"
-          class="block text-xs text-slate-400 mb-1"
-        >
-          User ID Bulma API Path
-        </label>
-
-        <input
-          type="text"
-          id="modal-user-path"
-          placeholder="/search_user"
-          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white"
-        >
-
-      </div>
-
-
-      <!-- STORY PATH -->
-      <div>
-
-        <label
-          for="modal-story-path"
-          class="block text-xs text-slate-400 mb-1"
-        >
-          Hikâye API Path (opsiyonel)
-        </label>
-
-        <input
-          type="text"
-          id="modal-story-path"
-          placeholder="/user_stories"
-          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white"
-        >
-
-      </div>
-      
-      <!-- SOURCEBIN -->
-      <div>
-
-        <label
-          for="modal-sourcebin-url"
-          class="block text-xs text-slate-400 mb-1"
-        >
-          Sourcebin API URL
-        </label>
-
-        <input
-          type="url"
-          id="modal-sourcebin-url"
-          placeholder="https://sourceb.in/api"
-          class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white"
-        >
-
-      </div>
-
-
 
       <!-- MODAL BUTTONS -->
-      <div class="flex justify-end gap-2">
-
-        <button
-          id="close-modal"
-          type="button"
-          class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs"
-        >
-          İptal
-        </button>
-
-        <button
-          id="save-api-key"
-          type="button"
-          class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs"
-        >
-          Kaydet
-        </button>
-
+      <div class="flex justify-end gap-3 pt-3 border-t border-slate-800">
+        <button id="close-modal" type="button" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-semibold transition-all">İptal</button>
+        <button id="save-api-key" type="button" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-sm font-semibold transition-all shadow-lg">Kaydet</button>
       </div>
 
     </div>
-
   </div>
-
 
 
   <!-- =========================================================
        ANA EKRANA EKLE MODAL
   ========================================================== -->
-  <div
-    id="install-modal"
-    class="modal-layer hidden"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="install-title"
-  >
-    <div class="app-modal-card">
-      <div class="app-modal-icon">
+  <div id="install-modal" class="modal-layer hidden fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-sm w-full text-center space-y-5 shadow-2xl">
+      <div class="w-16 h-16 bg-gradient-to-tr from-purple-500 to-rose-500 text-white rounded-full flex items-center justify-center mx-auto shadow-lg shadow-rose-500/30 text-3xl">
         <i class="fa-solid fa-mobile-screen-button"></i>
       </div>
-      <h3 id="install-title">Ana ekrana eklemek ister misin?</h3>
-      <p>
-        Bu siteyi uygulama gibi kullanmak için ana ekranına ekleyebilirsin.
-        Destekleyen tarayıcılarda kurulum penceresi otomatik açılır.
-      </p>
-      <div class="app-modal-actions">
-        <button id="close-install-modal" class="secondary-btn" type="button">
-          Daha Sonra
+      <h3 id="install-title" class="text-xl font-bold text-white">Ana ekrana eklemek ister misin?</h3>
+      <p class="text-sm text-slate-400">Bu siteyi uygulama gibi kullanmak için ana ekranına ekleyebilirsin. Destekleyen tarayıcılarda kurulum penceresi otomatik açılır.</p>
+      
+      <div class="flex flex-col gap-3 pt-2">
+        <button id="confirm-install" class="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2" type="button">
+          <i class="fa-solid fa-download"></i> Ana Ekrana Ekle
         </button>
-        <button id="confirm-install" class="primary-btn" type="button">
-          <i class="fa-solid fa-download"></i>
-          Ana Ekrana Ekle
+        <button id="close-install-modal" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-3 rounded-xl transition-all" type="button">
+          Daha Sonra
         </button>
       </div>
     </div>
@@ -814,6 +418,39 @@ return 2 + 2;"
        JAVASCRIPT
   ========================================================== -->
   <script src="/app.js"></script>
+
+  <!-- YENİ MENÜ VE ARAYÜZ KONTROLLERİ İÇİN EK JS -->
+  <script>
+    // Menü Açma/Kapama Animasyon Kontrolleri
+    const btnMenuOpen = document.getElementById('btn-menu-open');
+    const btnMenuClose = document.getElementById('btn-menu-close');
+    const sideMenu = document.getElementById('side-menu');
+    const menuOverlay = document.getElementById('menu-overlay');
+
+    function toggleMenu(show) {
+      if (show) {
+        sideMenu.classList.add('drawer-open');
+        menuOverlay.classList.add('overlay-open');
+      } else {
+        sideMenu.classList.remove('drawer-open');
+        menuOverlay.classList.remove('overlay-open');
+      }
+    }
+
+    if(btnMenuOpen) btnMenuOpen.addEventListener('click', () => toggleMenu(true));
+    if(btnMenuClose) btnMenuClose.addEventListener('click', () => toggleMenu(false));
+    if(menuOverlay) menuOverlay.addEventListener('click', () => toggleMenu(false));
+
+    // Tema alt menüsünü aç/kapat için basit JS
+    const btnTheme = document.getElementById('btn-theme');
+    const themeMenu = document.getElementById('theme-menu');
+    if(btnTheme && themeMenu) {
+      btnTheme.addEventListener('click', () => {
+        themeMenu.classList.toggle('hidden');
+        themeMenu.classList.toggle('flex');
+      });
+    }
+  </script>
 
 </body>
 </html>
